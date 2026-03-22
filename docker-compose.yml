@@ -1,0 +1,28 @@
+version: "3.9"
+
+services:
+  # ── PostgreSQL with pgvector ────────────────────────────────────────────────
+  # Using same credentials as existing docker setup for convenience.
+  # Manages a dedicated 'prepcreatine' database.
+  postgres:
+    image: pgvector/pgvector:pg16        # Official pgvector image — pre-installs the extension
+    container_name: prepcreatine-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: prepcreatine
+      POSTGRES_USER: reelbite
+      POSTGRES_PASSWORD: reelbite
+    ports:
+      - "5433:5432"                      # Use 5433 to avoid conflict with existing reelbite postgres on 5432
+    volumes:
+      - prepcreatine_postgres_data:/var/lib/postgresql/data
+      - ./docker/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U reelbite -d prepcreatine"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  prepcreatine_postgres_data:
+    driver: local
