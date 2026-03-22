@@ -4,7 +4,10 @@ import com.prepcreatine.domain.UserTopicProgress;
 import com.prepcreatine.service.SpacedRepetitionService;
 import com.prepcreatine.repository.UserContextRepository;
 import com.prepcreatine.repository.UserTopicProgressRepository;
+import com.prepcreatine.util.EvalLogger;
 import com.prepcreatine.util.SecurityUtil;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,6 +26,8 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/syllabus")
 public class SyllabusController {
+
+    private static final Logger log = LoggerFactory.getLogger(SyllabusController.class);
 
     private final UserTopicProgressRepository progressRepo;
     private final UserContextRepository       contextRepo;
@@ -78,6 +83,12 @@ public class SyllabusController {
         String examId    = body.getOrDefault("examId", "jee");
         String subjectId = body.getOrDefault("subjectId", "general");
 
+        log.info("[SyllabusController] PATCH topic status: userId={}, topicId={}, newStatus={}",
+            userId, topicId, status);
+        if ("done".equals(status)) {
+            EvalLogger.step(log, "MODULE-1 SM2", "Topic marked done \u2192 triggering SM-2 scheduling: topicId=" + topicId);
+        }
+
         UserTopicProgress p = progressRepo.findByUserIdAndTopicId(userId, topicId)
             .orElseGet(() -> {
                 UserTopicProgress np = new UserTopicProgress();
@@ -105,6 +116,14 @@ public class SyllabusController {
             resp.put("nextReviewDate", p.getNextReviewDate() != null
                 ? p.getNextReviewDate().toString()
                 : LocalDate.now().plusDays(1).toString());
+            EvalLogger.success(log, "MODULE-1 SYLLABUS",
+                String.format("Topic status updated: topicId=%s \u2192 %s", topicId, status));
+            if (p.getNextReviewDate() != null) {
+                EvalLogger.result(log, "MODULE-1 SM2", "Next review date scheduled", p.getNextReviewDate());
+            }
+        } else {
+            EvalLogger.success(log, "MODULE-1 SYLLABUS",
+                String.format("Topic status updated: topicId=%s \u2192 %s", topicId, status));
         }
         return ResponseEntity.ok(resp);
     }
@@ -118,6 +137,7 @@ public class SyllabusController {
     @GetMapping("/review-due")
     public ResponseEntity<Map<String, Object>> getReviewDue() {
         UUID userId = SecurityUtil.getCurrentUserId();
+        log.info("[SyllabusController] GET /api/syllabus/review-due: userId={}", userId);
         List<UserTopicProgress> due = spacedRep.getDueToday(userId);
 
         List<Map<String, Object>> topics = due.stream()
@@ -135,6 +155,10 @@ public class SyllabusController {
                 return m;
             })
             .collect(Collectors.toList());
+
+        EvalLogger.result(log, "MODULE-1 REVIEW-DUE", "dueCount", topics.size());
+        EvalLogger.success(log, "MODULE-1 REVIEW-DUE",
+            "Review-due endpoint returned " + topics.size() + " topics");
 
         return ResponseEntity.ok(Map.of(
             "dueCount", topics.size(),

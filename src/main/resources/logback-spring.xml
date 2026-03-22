@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+
+  <!-- ── Console appender with ANSI colour coding ──────────────────────────── -->
+  <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+    <encoder>
+      <pattern>%d{HH:mm:ss.SSS} %highlight(%-5level) %cyan([%X{requestId:-no-req}]) %yellow([%X{userId:-no-user}]) %boldWhite(%-40logger{40}) %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <!-- ── File appender — plain text for submission screenshots ─────────────── -->
+  <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>logs/prepcreatine.log</file>
+    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+      <fileNamePattern>logs/prepcreatine.%d{yyyy-MM-dd}.log</fileNamePattern>
+      <maxHistory>7</maxHistory>
+    </rollingPolicy>
+    <encoder>
+      <pattern>%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%X{requestId:-no-req}] [%X{userId:-no-user}] %-40logger{40} %msg%n</pattern>
+    </encoder>
+  </appender>
+
+  <!-- ── Separate appender for HACKATHON_EVAL logs — clean output for judges ─ -->
+  <appender name="EVAL" class="ch.qos.logback.core.rolling.RollingFileAppender">
+    <file>logs/hackathon-eval.log</file>
+    <rollingPolicy class="ch.qos.logback.core.rolling.TimeBasedRollingPolicy">
+      <fileNamePattern>logs/hackathon-eval.%d{yyyy-MM-dd}.log</fileNamePattern>
+      <maxHistory>3</maxHistory>
+    </rollingPolicy>
+    <encoder>
+      <pattern>%d{HH:mm:ss} | %-5level | %msg%n</pattern>
+    </encoder>
+    <!-- Only HACKATHON_EVAL marker goes into this file -->
+    <filter class="ch.qos.logback.core.filter.EvaluatorFilter">
+      <evaluator class="ch.qos.logback.classic.boolex.OnMarkerEvaluator">
+        <marker>HACKATHON_EVAL</marker>
+      </evaluator>
+      <OnMatch>ACCEPT</OnMatch>
+      <OnMismatch>DENY</OnMismatch>
+    </filter>
+  </appender>
+
+  <!-- ── Root logger ────────────────────────────────────────────────────────── -->
+  <root level="INFO">
+    <appender-ref ref="CONSOLE"/>
+    <appender-ref ref="FILE"/>
+    <appender-ref ref="EVAL"/>
+  </root>
+
+  <!-- Spring Boot framework — reduce noise -->
+  <logger name="org.springframework" level="WARN"/>
+  <logger name="org.hibernate"       level="WARN"/>
+  <logger name="com.zaxxer.hikari"   level="WARN"/>
+  <logger name="org.flywaydb"        level="INFO"/>
+
+  <!-- PrepCreatine application code — show DEBUG in dev/demo, INFO in prod -->
+  <springProfile name="demo,dev">
+    <logger name="com.prepcreatine" level="DEBUG"/>
+  </springProfile>
+  <springProfile name="prod">
+    <logger name="com.prepcreatine" level="INFO"/>
+  </springProfile>
+
+</configuration>

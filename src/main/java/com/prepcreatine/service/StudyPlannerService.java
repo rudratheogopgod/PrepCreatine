@@ -1,7 +1,9 @@
 package com.prepcreatine.service;
 
+import com.prepcreatine.domain.LearnerProfile;
 import com.prepcreatine.domain.UserContext;
 import com.prepcreatine.domain.UserTopicProgress;
+import com.prepcreatine.repository.LearnerProfileRepository;
 import com.prepcreatine.repository.UserContextRepository;
 import com.prepcreatine.repository.UserTopicProgressRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -20,15 +22,7 @@ import java.util.stream.Collectors;
 
 /**
  * StudyPlannerService — generates and returns today's personalised study plan.
- *
- * Plan generation logic:
- *   1. Check daily_plans table for today — if exists, return cached
- *   2. If not cached: build prompt from user context + SM-2 due topics
- *   3. Call Gemini to generate a JSON plan
- *   4. Store in daily_plans for the day
- *   5. Return the plan
- *
- * Called from PlannerController: GET /api/planner/today
+ * Also implements the autonomous agent replan loop (Component D).
  */
 @Service
 @Transactional
@@ -36,26 +30,33 @@ public class StudyPlannerService {
 
     private static final Logger log = LoggerFactory.getLogger(StudyPlannerService.class);
 
-    private final JdbcTemplate              jdbc;
-    private final UserContextRepository     contextRepo;
+    private final JdbcTemplate               jdbc;
+    private final UserContextRepository      contextRepo;
     private final UserTopicProgressRepository progressRepo;
-    private final SpacedRepetitionService   spacedRep;
-    private final GeminiService             gemini;
-    private final ObjectMapper              om;
+    private final SpacedRepetitionService    spacedRep;
+    private final GeminiService              gemini;
+    private final ObjectMapper               om;
+    private final LearnerProfileRepository   profileRepo;
+    private final NotificationService        notificationService;
 
     public StudyPlannerService(JdbcTemplate jdbc,
                                UserContextRepository contextRepo,
                                UserTopicProgressRepository progressRepo,
                                SpacedRepetitionService spacedRep,
                                GeminiService gemini,
-                               ObjectMapper om) {
-        this.jdbc         = jdbc;
-        this.contextRepo  = contextRepo;
-        this.progressRepo = progressRepo;
-        this.spacedRep    = spacedRep;
-        this.gemini       = gemini;
-        this.om           = om;
+                               ObjectMapper om,
+                               LearnerProfileRepository profileRepo,
+                               NotificationService notificationService) {
+        this.jdbc                = jdbc;
+        this.contextRepo         = contextRepo;
+        this.progressRepo        = progressRepo;
+        this.spacedRep           = spacedRep;
+        this.gemini              = gemini;
+        this.om                  = om;
+        this.profileRepo         = profileRepo;
+        this.notificationService = notificationService;
     }
+
 
     /**
      * Returns today's study plan. Cached in daily_plans table.
@@ -316,4 +317,67 @@ public class StudyPlannerService {
         if (s == null || s.isEmpty()) return s;
         return Character.toUpperCase(s.charAt(0)) + s.substring(1);
     }
+
+    // ── Component D: Autonomous Agent Replan Loop ─────────────────────────
+
+    /**
+     * Called asynchronously from QuizService after every test submission.
+     * The agent decides autonomously whether to rebuild today's plan based
+     * on the student's current struggle indicator — no student input needed.
+     *
+     * Triggers:
+     *   1. struggle_indicator > 0.6 (severe struggle detected)
+     *   2. Too many practice sessions AND still struggling
+     */
+    @Async
+    public void agentReplanIfNeeded(UUID userId) {
+        try {
+            LearnerProfile profile = profileRepo.findByUserId(userId).orElse(null);
+            if (profile == null) return;
+
+            double struggle = profile.getStruggleIndicator() != null
+                ? profile.getStruggleIndicator().doubleValue() : 0;
+
+            // Does a plan exist for today?
+            boolean planExists = false;
+            try {
+                planExists = !jdbc.queryForList(
+                    "SELECT 1 FROM daily_plans WHERE user_id = ? AND plan_date = CURRENT_DATE",
+                    userId).isEmpty();
+            } catch (Exception e) {
+                return; // No plan table or no plan — nothing to replan
+            }
+            if (!planExists) return;
+
+            boolean shouldReplan = false;
+            String replanReason = "";
+
+            if (struggle > 0.6) {
+                shouldReplan = true;
+                replanReason = "recent tests show severe struggle (>" +
+                    String.format("%.0f", struggle * 100) + "% error rate)";
+            }
+
+            if (!shouldReplan) return;
+
+            log.info("[PlannerAgent] Autonomous replan for userId={}: {}", userId, replanReason);
+
+            // Delete existing plan (will be regenerated fresh on next GET /api/planner/today)
+            jdbc.update("DELETE FROM daily_plans WHERE user_id = ? AND plan_date = CURRENT_DATE",
+                userId);
+
+            // Notify student
+            notificationService.createNotification(userId, "ai_insight",
+                "Your study plan was updated",
+                "Based on your recent performance, PrepCreatine adjusted today's plan " +
+                "to focus more on review. " + replanReason + ".",
+                "/planner");
+
+            log.info("[PlannerAgent] Plan invalidated for userId={} — will regenerate on next request", userId);
+
+        } catch (Exception e) {
+            log.warn("[PlannerAgent] Replan failed userId={}: {}", userId, e.getMessage());
+        }
+    }
 }
+

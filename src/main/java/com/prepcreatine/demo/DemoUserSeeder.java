@@ -53,6 +53,8 @@ public class DemoUserSeeder {
         tryRun("dailyPlan",        this::seedDailyPlan);
         tryRun("notifications",    this::seedNotifications);
         tryRun("questions",        this::seedQuestions);
+        tryRun("learnerProfile",   this::seedLearnerProfile);
+        tryRun("memoryEntries",    this::seedMemoryEntries);
 
         log.info("[DemoUserSeeder] Demo data seed complete.");
     }
@@ -653,4 +655,89 @@ public class DemoUserSeeder {
             ON CONFLICT DO NOTHING
             """, topicId, level, type, questionText, correctAnswer, explanation);
     }
+
+    // ── AI Agent Demo Data ───────────────────────────────────────────────────
+
+    /**
+     * Seeds a realistic pre-computed learner profile and concept struggles
+     * so that GET /api/analytics/agent-insights returns meaningful data
+     * immediately at demo time, without waiting for the 2-hour agent cycle.
+     */
+    private void seedLearnerProfile() {
+        // Upsert learner_profiles
+        jdbc.update("""
+            INSERT INTO learner_profiles
+              (user_id, struggle_indicator, consistency_score,
+               avg_time_per_correct, avg_time_per_wrong,
+               total_questions_seen,
+               weakness_pattern, strength_pattern, recommended_mode,
+               learning_velocity, last_analyzed_at)
+            VALUES (?::uuid, 0.52, 0.71, 42.0, 189.0, 87,
+              'Struggles most with reaction mechanisms in Organic Chemistry (GOC) and definite integral evaluation; typically spends 3x as long on wrong answers, suggesting gaps in conceptual understanding rather than careless errors.',
+              'Strong in Physics kinematics and coordinate geometry — consistently scores above 85% and solves problems in under 45 seconds.',
+              'in_depth',
+              0.64,
+              NOW() - INTERVAL '30 minutes')
+            ON CONFLICT (user_id) DO UPDATE SET
+              weakness_pattern   = EXCLUDED.weakness_pattern,
+              strength_pattern   = EXCLUDED.strength_pattern,
+              recommended_mode   = EXCLUDED.recommended_mode,
+              last_analyzed_at   = EXCLUDED.last_analyzed_at
+            """, USER_ID);
+
+        // Upsert concept_struggles (top struggles for agentic RAG enrichment)
+        String[] concepts = {
+            "reaction mechanisms",
+            "definite integrals",
+            "mesomeric effect",
+            "inductive effect order",
+            "entropy calculations",
+            "carbocation stability",
+            "integration by parts LIATE"
+        };
+        int[] counts = {7, 6, 5, 4, 4, 3, 3};
+        for (int i = 0; i < concepts.length; i++) {
+            final int idx = i;
+            jdbc.update("""
+                INSERT INTO concept_struggles (user_id, concept_tag, struggle_count, last_seen_at)
+                VALUES (?::uuid, ?, ?, NOW() - ? * INTERVAL '1 day')
+                ON CONFLICT (user_id, concept_tag) DO UPDATE SET
+                  struggle_count = EXCLUDED.struggle_count
+                """, USER_ID, concepts[idx], counts[idx], idx);
+        }
+    }
+
+    /**
+     * Seeds cross-session memory entries so the memory context shows up
+     * in the first chat response during the demo.
+     */
+    private void seedMemoryEntries() {
+        Object[][] memories = {
+            {"misconception", "jee-chemistry-organic-goc",
+             "reaction mechanisms, mesomeric effect",
+             "Student confused +M and -M effects — confused -OH (electron donating) with -NO2 (electron withdrawing). Needs reinforcement on donor vs acceptor groups.",
+             0.9, 14},
+            {"concept_explanation", "jee-math-integration",
+             "integration by parts, LIATE",
+             "Explained LIATE rule for integration by parts. Student understood the concept but struggles to apply with trigonometric functions — needs more practice problems.",
+             0.8, 7},
+            {"difficulty_signal", "jee-physics-thermodynamics",
+             "entropy, second law",
+             "Student finds entropy conceptually difficult — expressed confusion about direction of spontaneous processes. Suggested visualizing disorder rather than memorizing formula.",
+             0.75, 3}
+        };
+
+        for (Object[] m : memories) {
+            jdbc.update("""
+                INSERT INTO student_memory_entries
+                  (user_id, memory_type, topic_id, concept_tags, summary,
+                   importance_score, expires_at)
+                VALUES (?::uuid, ?, ?, ?, ?, ?,
+                        NOW() + INTERVAL '30 days')
+                ON CONFLICT DO NOTHING
+                """,
+                USER_ID, m[0], m[1], m[2], m[3], m[4]);
+        }
+    }
 }
+

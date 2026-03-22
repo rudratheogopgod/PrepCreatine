@@ -42,6 +42,8 @@ public class QuizService {
     private final AdaptiveQuizService        adaptiveQuiz;
     private final GeminiService              gemini;
     private final ObjectMapper               om;
+    private final LearnerProfileService      learnerProfile;
+    private final StudyPlannerService        studyPlanner;
 
     public QuizService(TestSessionRepository testSessionRepo,
                        TestAnswerRepository testAnswerRepo,
@@ -50,7 +52,9 @@ public class QuizService {
                        SpacedRepetitionService spacedRep,
                        AdaptiveQuizService adaptiveQuiz,
                        GeminiService gemini,
-                       ObjectMapper om) {
+                       ObjectMapper om,
+                       LearnerProfileService learnerProfile,
+                       StudyPlannerService studyPlanner) {
         this.testSessionRepo = testSessionRepo;
         this.testAnswerRepo  = testAnswerRepo;
         this.questionRepo    = questionRepo;
@@ -59,6 +63,8 @@ public class QuizService {
         this.adaptiveQuiz    = adaptiveQuiz;
         this.gemini          = gemini;
         this.om              = om;
+        this.learnerProfile  = learnerProfile;
+        this.studyPlanner    = studyPlanner;
     }
 
     /**
@@ -165,9 +171,15 @@ public class QuizService {
             }
         }
 
-        List<Question> questions = questionRepo.findAllById(
+        // 4. Update persistent learner behavioral profile (async)
+        List<Question> questionObjs = questionRepo.findAllById(
             session.getQuestionIds() != null ? session.getQuestionIds() : List.of());
-        return toDetailResponse(session, questions, true);
+        learnerProfile.updateFromTestResult(userId, answers, questionObjs);
+
+        // 5. Agent loop: replan today if student performance warrants it (async)
+        studyPlanner.agentReplanIfNeeded(userId);
+
+        return toDetailResponse(session, questionObjs, true);
     }
 
     @Transactional(readOnly = true)

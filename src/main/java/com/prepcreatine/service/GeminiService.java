@@ -2,6 +2,7 @@ package com.prepcreatine.service;
 
 import com.prepcreatine.config.GeminiProperties;
 import com.prepcreatine.exception.ExternalServiceException;
+import com.prepcreatine.util.EvalLogger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -48,22 +49,43 @@ public class GeminiService {
      * @throws ExternalServiceException if Gemini returns an error
      */
     public String generateContent(String systemPrompt, String userPrompt) {
+        log.info("[Gemini] Call start: model={}, promptLength={}chars", props.getModel(), userPrompt.length());
+        long start = System.currentTimeMillis();
         Map<String, Object> requestBody = buildGenerateRequest(systemPrompt, userPrompt);
 
-        String response = geminiClient.post()
-            .uri("/v1beta/models/" + props.getModel() + ":generateContent?key=" + props.getApiKey())
-            .contentType(MediaType.APPLICATION_JSON)
-            .bodyValue(requestBody)
-            .retrieve()
-            .onStatus(status -> !status.is2xxSuccessful(), resp ->
-                resp.bodyToMono(String.class)
-                    .flatMap(body -> Mono.error(
-                        new ExternalServiceException("Gemini",
-                            "Gemini API error " + resp.statusCode().value() + ": " + body))))
-            .bodyToMono(String.class)
-            .block();
+        String response;
+        try {
+            response = geminiClient.post()
+                .uri("/v1beta/models/" + props.getModel() + ":generateContent?key=" + props.getApiKey())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(requestBody)
+                .retrieve()
+                .onStatus(status -> !status.is2xxSuccessful(), resp ->
+                    resp.bodyToMono(String.class)
+                        .flatMap(body -> {
+                            EvalLogger.failure(log, "GEMINI",
+                                "API call failed: status=" + resp.statusCode().value());
+                            return Mono.error(new ExternalServiceException("Gemini",
+                                "Gemini API error " + resp.statusCode().value() + ": " + body));
+                        }))
+                .bodyToMono(String.class)
+                .block();
+        } catch (Exception ex) {
+            long ms = System.currentTimeMillis() - start;
+            EvalLogger.failure(log, "GEMINI", "Call failed after " + ms + "ms: " + ex.getMessage());
+            throw ex;
+        }
 
-        return extractText(response);
+        long ms = System.currentTimeMillis() - start;
+        String text = extractText(response);
+        EvalLogger.result(log, "GEMINI", "Response time", ms + "ms");
+        EvalLogger.result(log, "GEMINI", "Response length", text.length() + " chars");
+        if (ms > 10000) {
+            EvalLogger.failure(log, "GEMINI", "Response took " + ms + "ms — exceeded 10s threshold");
+        } else {
+            log.debug("[Gemini] Call complete: {}ms", ms);
+        }
+        return text;
     }
 
     // ── Streaming Generation ───────────────────────────────────────────────
@@ -95,6 +117,8 @@ public class GeminiService {
      * Model: text-embedding-004
      */
     public float[] embedText(String text) {
+        log.debug("[Embedding] Embedding text: length={}chars", text.length());
+        long start = System.currentTimeMillis();
         Map<String, Object> requestBody = Map.of(
             "model", "models/text-embedding-004",
             "content", Map.of(
@@ -114,7 +138,9 @@ public class GeminiService {
             .bodyToMono(String.class)
             .block();
 
-        return extractEmbedding(response);
+        float[] embedding = extractEmbedding(response);
+        log.debug("[Embedding] Done: {}ms, dimensions={}", System.currentTimeMillis() - start, embedding.length);
+        return embedding;
     }
 
     // ── Private Helpers ────────────────────────────────────────────────────

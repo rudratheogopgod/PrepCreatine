@@ -4,6 +4,7 @@ import com.prepcreatine.domain.TestSession;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -28,4 +29,17 @@ public interface TestSessionRepository extends JpaRepository<TestSession, UUID> 
     default List<TestSession> findCompletedByUserIdOrderByDate(UUID userId, int limit) {
         return findCompletedByUserIdOrderByDateInternal(userId, PageRequest.of(0, limit));
     }
+
+    /**
+     * Count distinct calendar days the user has completed study sessions in the last 14 days.
+     * Used by LearnerProfileService to compute consistency_score.
+     */
+    @Query(value = """
+        SELECT COUNT(DISTINCT DATE(created_at AT TIME ZONE 'UTC'))
+        FROM test_sessions
+        WHERE user_id = :userId
+          AND created_at >= NOW() - INTERVAL '14 days'
+        """, nativeQuery = true)
+    long countDistinctStudyDatesByUserIdInLast14Days(@Param("userId") UUID userId);
 }
+
