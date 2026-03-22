@@ -34,23 +34,29 @@ public class QuizService {
 
     private static final Logger log = LoggerFactory.getLogger(QuizService.class);
 
-    private final TestSessionRepository testSessionRepo;
-    private final TestAnswerRepository  testAnswerRepo;
-    private final QuestionRepository    questionRepo;
+    private final TestSessionRepository      testSessionRepo;
+    private final TestAnswerRepository       testAnswerRepo;
+    private final QuestionRepository         questionRepo;
     private final UserTopicProgressRepository progressRepo;
-    private final GeminiService         gemini;
-    private final ObjectMapper          om;
+    private final SpacedRepetitionService    spacedRep;
+    private final AdaptiveQuizService        adaptiveQuiz;
+    private final GeminiService              gemini;
+    private final ObjectMapper               om;
 
     public QuizService(TestSessionRepository testSessionRepo,
                        TestAnswerRepository testAnswerRepo,
                        QuestionRepository questionRepo,
                        UserTopicProgressRepository progressRepo,
+                       SpacedRepetitionService spacedRep,
+                       AdaptiveQuizService adaptiveQuiz,
                        GeminiService gemini,
                        ObjectMapper om) {
         this.testSessionRepo = testSessionRepo;
         this.testAnswerRepo  = testAnswerRepo;
         this.questionRepo    = questionRepo;
         this.progressRepo    = progressRepo;
+        this.spacedRep       = spacedRep;
+        this.adaptiveQuiz    = adaptiveQuiz;
         this.gemini          = gemini;
         this.om              = om;
     }
@@ -137,8 +143,27 @@ public class QuizService {
         session.setSubmittedAt(OffsetDateTime.now());
         testSessionRepo.save(session);
 
-        // Update topic progress async
+        // 1. Update topic progress async (score level + test attempts)
         updateTopicProgressAsync(userId, session.getTopicId(), score.doubleValue());
+
+        // 2. Apply SM-2 spaced repetition based on score → quality
+        if (session.getTopicId() != null) {
+            int quality = spacedRep.scoreToQuality(score.doubleValue());
+            spacedRep.applyReview(userId, session.getTopicId(), quality);
+        }
+
+        // 3. If score < 50%, trigger adaptive drill for topic (async)
+        if (score.doubleValue() < 50.0 && session.getTopicId() != null) {
+            // Collect wrong answers for targeted drill generation
+            List<TestAnswer> wrongAnswers = answers.stream()
+                .filter(a -> Boolean.FALSE.equals(a.getIsCorrect()))
+                .toList();
+            if (!wrongAnswers.isEmpty()) {
+                String examId = session.getExamId() != null ? session.getExamId() : "jee";
+                adaptiveQuiz.generateTargetedDrill(userId, session.getTopicId(),
+                    examId, wrongAnswers);
+            }
+        }
 
         List<Question> questions = questionRepo.findAllById(
             session.getQuestionIds() != null ? session.getQuestionIds() : List.of());

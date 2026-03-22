@@ -47,6 +47,22 @@ public class UserTopicProgress {
     @Column(name = "test_attempts", nullable = false)
     private int testAttempts = 0;
 
+    // ── SM-2 Spaced Repetition fields ─────────────────────────────────────────
+    @Column(name = "easiness_factor", nullable = false, precision = 4, scale = 2)
+    private java.math.BigDecimal easinessFactor = new java.math.BigDecimal("2.5");
+
+    @Column(name = "repetition_count", nullable = false)
+    private int repetitionCount = 0;
+
+    @Column(name = "interval_days", nullable = false)
+    private int intervalDays = 1;
+
+    @Column(name = "next_review_date")
+    private java.time.LocalDate nextReviewDate;
+
+    @Column(name = "last_reviewed_at")
+    private OffsetDateTime lastReviewedAt;
+
     @Column(name = "updated_at", nullable = false)
     private OffsetDateTime updatedAt = OffsetDateTime.now();
 
@@ -54,6 +70,7 @@ public class UserTopicProgress {
     protected void onUpdate() { this.updatedAt = OffsetDateTime.now(); }
 
     public UserTopicProgress() {}
+
 
     // ── Getters & Setters ─────────────────────────────────────────────────────
 
@@ -78,4 +95,17 @@ public class UserTopicProgress {
     public void setLastTouched(OffsetDateTime lastTouched) { this.lastTouched = lastTouched; }
     public OffsetDateTime getCreatedAt() { return createdAt; }
     public OffsetDateTime getUpdatedAt() { return updatedAt; }
+
+    // ── SM-2 getters & setters ───────────────────────────────────────────────
+    public java.math.BigDecimal getEasinessFactor() { return easinessFactor; }
+    public void setEasinessFactor(java.math.BigDecimal easinessFactor) { this.easinessFactor = easinessFactor; }
+    public int getRepetitionCount() { return repetitionCount; }
+    public void setRepetitionCount(int repetitionCount) { this.repetitionCount = repetitionCount; }
+    public int getIntervalDays() { return intervalDays; }
+    public void setIntervalDays(int intervalDays) { this.intervalDays = intervalDays; }
+    public java.time.LocalDate getNextReviewDate() { return nextReviewDate; }
+    public void setNextReviewDate(java.time.LocalDate nextReviewDate) { this.nextReviewDate = nextReviewDate; }
+    public OffsetDateTime getLastReviewedAt() { return lastReviewedAt; }
+    public void setLastReviewedAt(OffsetDateTime lastReviewedAt) { this.lastReviewedAt = lastReviewedAt; }
 }
+

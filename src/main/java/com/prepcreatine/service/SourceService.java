@@ -32,16 +32,19 @@ public class SourceService {
     private static final Logger log = LoggerFactory.getLogger(SourceService.class);
     private static final long   MAX_TEXT_CHARS = 500_000;
 
-    private final SourceRepository      sourceRepo;
-    private final SourceChunkRepository chunkRepo;
-    private final GeminiService         gemini;
+    private final SourceRepository         sourceRepo;
+    private final SourceChunkRepository    chunkRepo;
+    private final GeminiService            gemini;
+    private final YouTubeTranscriptService youtubeService;
 
     public SourceService(SourceRepository sourceRepo,
                          SourceChunkRepository chunkRepo,
-                         GeminiService gemini) {
-        this.sourceRepo = sourceRepo;
-        this.chunkRepo  = chunkRepo;
-        this.gemini     = gemini;
+                         GeminiService gemini,
+                         YouTubeTranscriptService youtubeService) {
+        this.sourceRepo      = sourceRepo;
+        this.chunkRepo       = chunkRepo;
+        this.gemini          = gemini;
+        this.youtubeService  = youtubeService;
     }
 
     @Transactional(readOnly = true)
@@ -111,6 +114,30 @@ public class SourceService {
         source.setType("PDF");
         source.setTitle(filename != null ? filename : "Uploaded PDF");
         source.setRawText(text);
+        source.setStatus("PENDING");
+        source = sourceRepo.save(source);
+
+        processSourceAsync(source.getId());
+        return toResponse(source);
+    }
+
+    /**
+     * POST /api/sources/import-youtube
+     * Extracts and processes YouTube content as study notes via YouTubeTranscriptService + Gemini.
+     */
+    public SourceResponse importYoutube(String url, String examId, String subjectId,
+                                        String topicId, UUID userId) {
+        if (url == null || url.isBlank()) {
+            throw new ValidationException("YouTube URL is required.");
+        }
+        YouTubeTranscriptService.YouTubeResult ytResult = youtubeService.processUrl(url);
+
+        Source source = new Source();
+        source.setUserId(userId);
+        source.setType("YOUTUBE");
+        source.setUrl(url);
+        source.setTitle(ytResult.title());
+        source.setRawText(ytResult.rawText());
         source.setStatus("PENDING");
         source = sourceRepo.save(source);
 

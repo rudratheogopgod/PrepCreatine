@@ -71,7 +71,7 @@ public class DemoAuthController {
     public ResponseEntity<UserResponse> me() {
         log.info("[DemoAuth] /me called → returning demo user");
         UserResponse userResponse = userRepository.findById(DemoModeConfig.DEMO_USER_ID)
-                .map(userMapper::toUserResponse)
+                .map(userMapper::toResponse)
                 .orElseThrow(() -> new IllegalStateException(
                         "[DemoAuthController] Demo user not found. Check DemoUserSeeder."));
         return ResponseEntity.ok(userResponse);
@@ -107,7 +107,7 @@ public class DemoAuthController {
     public ResponseEntity<UserResponse> verifyEmail(@RequestBody(required = false) Map<String, Object> req) {
         log.info("[DemoAuth] verify-email called → returning demo user");
         UserResponse userResponse = userRepository.findById(DemoModeConfig.DEMO_USER_ID)
-                .map(userMapper::toUserResponse)
+                .map(userMapper::toResponse)
                 .orElseThrow(() -> new IllegalStateException(
                         "[DemoAuthController] Demo user not found. Check DemoUserSeeder."));
         return ResponseEntity.ok(userResponse);

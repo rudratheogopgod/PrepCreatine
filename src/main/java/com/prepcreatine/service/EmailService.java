@@ -25,6 +25,9 @@ public class EmailService {
     private final JavaMailSender mailSender;
     private final AppProperties  app;
 
+    @org.springframework.beans.factory.annotation.Value("${app.demo-mode:false}")
+    private boolean demoMode;
+
     public EmailService(JavaMailSender mailSender, AppProperties app) {
         this.mailSender = mailSender;
         this.app        = app;
@@ -75,6 +78,11 @@ public class EmailService {
     // ── Helpers ───────────────────────────────────────────────────────────
 
     private void sendHtmlEmail(String to, String subject, String html) {
+        // [BSDD v2.1 §9] Demo mode — suppress all SMTP calls
+        if (demoMode) {
+            log.info("[EmailService] Demo mode — email suppressed. To: {}, Subject: {}", to, subject);
+            return;
+        }
         try {
             MimeMessage message = mailSender.createMimeMessage();
             MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");

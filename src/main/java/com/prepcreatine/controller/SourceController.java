@@ -63,6 +63,22 @@ public class SourceController {
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
     }
 
+    /**
+     * POST /api/sources/import-youtube
+     * Imports a YouTube video's content (generated study notes) as a source.
+     * Body: { url: String, examId: String (optional), subjectId: String (optional), topicId: String (optional) }
+     */
+    @PostMapping("/import-youtube")
+    public ResponseEntity<SourceResponse> importYoutube(@RequestBody Map<String, String> body) {
+        String url       = body.getOrDefault("url", "");
+        String examId    = body.getOrDefault("examId", "jee");
+        String subjectId = body.getOrDefault("subjectId", "general");
+        String topicId   = body.getOrDefault("topicId", null);
+        SourceResponse response = sourceService.importYoutube(
+            url, examId, subjectId, topicId, SecurityUtil.getCurrentUserId());
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(response);
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Map<String, String>> delete(@PathVariable UUID id) {
         sourceService.deleteSource(id, SecurityUtil.getCurrentUserId());
