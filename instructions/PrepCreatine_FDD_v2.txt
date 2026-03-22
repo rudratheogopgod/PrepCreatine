@@ -1,0 +1,1698 @@
+================================================================================
+PREPCREATINE — FRONTEND DESIGN & DEVELOPMENT DOCUMENT (FDD)
+Version 2.0 | DevClash2026 Hackathon Edition
+Prepared for AI-assisted frontend development
+================================================================================
+Author credit: "Brought to you by Rudra Agrawal" — display this string in the
+landing page footer, the about section, and the app sidebar footer.
+Project name: PrepCreatine (always written as "PrepCreatine" in UI-visible text)
+Tagline:          "Creatine for your exam prep"
+Secondary tagline: "Your AI-powered study companion"
+Version:          2.0
+Date:             March 2026
+Status:           Hackathon MVP — Demo Mode Active
+
+WHAT IS NEW IN v2.0 (vs v1.0):
+  NEW  Demo mode — auto-login as Arjun Sharma, no auth enforcement
+  NEW  DemoBanner component — fixed bottom strip with reset button
+  NEW  ReviewDueWidget on Home — shows topics due for spaced repetition
+  NEW  TodayPlan page (/planner) — autonomous daily study plan
+  NEW  KnowledgeGraph page (/knowledge) — concept mastery visualization
+  NEW  VoiceInput component — Hindi/Hinglish speech-to-text in chat
+  NEW  GroundedInBadge component — "📚 Grounded in NCERT" in chat messages
+  NEW  GazeProctor component — webcam proctoring during tests
+  NEW  YouTube import tab in Notes — /notes with YouTube URL input
+  NEW  Targeted drill entry points — results page + notifications
+  NEW  SM-2 feedback in test results — next review dates shown
+  NEW  useDemoMode hook — checks VITE_DEMO_MODE flag
+  NEW  useReviewDue hook — fetches /api/syllabus/review-due
+  NEW  useDailyPlan hook — fetches /api/planner/today
+  NEW  useKnowledgeGraph hook — fetches /api/analytics/knowledge-graph
+  NEW  useVoiceInput hook — Web Speech API wrapper
+  MOD  Home.tsx — adds ReviewDueWidget + TodayPlanPreview
+  MOD  Learn.tsx — adds VoiceInput + GroundedInBadge + Hindi mode
+  MOD  Notes.tsx — adds YouTube tab in import modal
+  MOD  SourceViewer.tsx — shows YouTube thumbnail for video sources
+  MOD  TestResults.tsx — SM-2 dates + targeted drill CTA + proctoring summary
+  MOD  ExamSession.tsx — adds GazeProctor + per-question timer
+  MOD  Analytics.tsx — adds spaced rep stats card + knowledge graph link
+  MOD  Sidebar.tsx — adds Planner nav item + review badge
+  MOD  App.tsx — demo routing, new routes, 401 handler bypassed in demo
+  MOD  client.ts (Axios) — 401 redirect suppressed in demo mode
+
+================================================================================
+SECTION 0: HOW TO READ THIS DOCUMENT
+================================================================================
+This document is the single source of truth for the PrepCreatine frontend.
+It covers every page, every component, every interaction, every error state,
+and every design decision. Read it fully before writing any code. Do not
+hallucinate features not described here. Do not invent routes, components, or
+behaviors that are not specified. When something is ambiguous, default to the
+simpler, cleaner implementation.
+
+This document uses the following notation:
+  [REQUIRED]   — must be implemented exactly as described
+  [OPTIONAL]   — implement if time allows, skip otherwise
+  [FORBIDDEN]  — never do this under any circumstances
+  [NOTE]       — important context or reasoning
+  [DARK]       — dark mode specific instruction
+  [A11Y]       — accessibility requirement
+  [PERF]       — performance requirement
+  [LOG]        — add a console.log or logger call here for debugging
+  [NEW]        — added in v2.0 (did not exist in v1.0)
+  [MOD]        — modified from v1.0
+  [DEMO]       — demo-mode-specific behaviour
+
+================================================================================
+SECTION 1: TECH STACK (REQUIRED — DO NOT DEVIATE)
+================================================================================
+
+FRAMEWORK & BUILD
+  - React 18 with Vite (NOT Create React App, NOT Next.js)
+  - TypeScript strict mode enabled
+  - React Router v6 for all routing
+
+STATE MANAGEMENT
+  - TanStack Query (React Query v5) for all server state and API calls
+  - Zustand for global client state (UserContext, auth, theme, notifications)
+  - React Hook Form for ALL forms — never use raw useState for form fields
+  - No Redux, no MobX, no Context API for state that could go in Zustand
+
+STYLING
+  - Tailwind CSS v3 with custom theme extension (see Section 3)
+  - tailwind-merge for conditional class merging
+  - clsx for className logic
+  - NO inline styles except for dynamic values that Tailwind cannot express
+  - NO styled-components, NO CSS modules, NO emotion
+
+ANIMATIONS
+  - Framer Motion for all page transitions and component animations
+  - CSS transitions for hover states (faster than JS)
+  - NO GreenSock, NO anime.js
+
+UI COMPONENTS
+  - Lucide React for ALL icons — import individually (tree shaking)
+  - react-day-picker for all date pickers
+  - React Flow (@xyflow/react) for roadmap, concept maps, knowledge graph
+  - react-virtual (TanStack Virtual) for virtualized lists
+  - DOMPurify for sanitizing any HTML from user content or AI
+  - react-hot-toast for all toast notifications
+  - canvas-confetti for topic completion celebration [NEW: also used in SM-2]
+
+NEW IN v2.0:                                                           [NEW]
+  - @mediapipe/face_mesh for on-device gaze proctoring
+    (lazy-loaded — only imported inside GazeProctor.tsx)
+  - react-markdown + remark-gfm for chat message rendering (was already used)
+  - recharts [OPTIONAL] for knowledge graph mastery bars if Chart.js feels heavy
+
+HTTP & API
+  - Axios with a custom instance (see Section 8) — never use raw fetch
+  - All API calls go through TanStack Query hooks
+  - Sentry (@sentry/react) for error monitoring
+
+FORMS & VALIDATION
+  - React Hook Form (always)
+  - Zod for schema validation via @hookform/resolvers
+  - All Zod schemas in /src/schemas/
+
+PWA
+  - Vite PWA plugin (vite-plugin-pwa) with Workbox
+  - Service Worker registered automatically
+
+FONTS
+  - Poppins: weights 400, 500, 600, 700 via @fontsource/poppins
+  - Inter: weights 400, 500 via @fontsource/inter
+  - JetBrains Mono via @fontsource/jetbrains-mono
+  - Load via @fontsource packages, not CDN
+
+DEPLOYMENT TARGET
+  - Vercel (primary)
+  - All environment variables prefixed with VITE_
+  - vercel.json must rewrite all routes → index.html
+
+ENVIRONMENT VARIABLES                                                  [NEW]
+  VITE_API_BASE_URL=http://localhost:8080
+  VITE_DEMO_MODE=true          ← set to true for hackathon demo
+  VITE_SENTRY_DSN=             ← optional, can be empty in demo
+
+================================================================================
+SECTION 2: PROJECT STRUCTURE (REQUIRED)
+================================================================================
+
+src/
+├── main.tsx                    ← Sentry init, React root, providers
+├── App.tsx                     ← Router, route definitions [MOD: new routes]
+├── index.css                   ← Tailwind directives, font imports, CSS vars
+├── vite-env.d.ts
+│
+├── assets/
+│   ├── logo.svg
+│   ├── logo-dark.svg
+│   └── demo.gif
+│
+├── components/
+│   ├── ui/
+│   │   ├── Button.tsx
+│   │   ├── Input.tsx
+│   │   ├── Select.tsx
+│   │   ├── Card.tsx
+│   │   ├── Badge.tsx
+│   │   ├── Skeleton.tsx
+│   │   ├── Toast.tsx
+│   │   ├── Modal.tsx
+│   │   ├── Tooltip.tsx
+│   │   ├── ProgressBar.tsx
+│   │   ├── Avatar.tsx
+│   │   └── Spinner.tsx
+│   │
+│   ├── layout/
+│   │   ├── AppShell.tsx        [MOD: DemoBanner rendered here]
+│   │   ├── Sidebar.tsx         [MOD: Planner nav item + review badge]
+│   │   ├── Topbar.tsx
+│   │   ├── PageWrapper.tsx
+│   │   └── ErrorBoundary.tsx
+│   │
+│   ├── shared/
+│   │   ├── ExamBadge.tsx
+│   │   ├── TopicStatusChip.tsx
+│   │   ├── YoutubeCard.tsx
+│   │   ├── SkeletonCard.tsx
+│   │   ├── EmptyState.tsx
+│   │   ├── GroundedInBadge.tsx  ← [NEW] "📚 Grounded in NCERT" pill
+│   │   └── SM2NextReviewChip.tsx ← [NEW] shows next review date
+│   │
+│   └── demo/
+│       └── DemoBanner.tsx       ← [NEW] fixed bottom bar in demo mode
+│
+├── pages/
+│   ├── landing/
+│   ├── auth/
+│   │   ├── Login.tsx
+│   │   ├── Signup.tsx
+│   │   ├── ForgotPassword.tsx
+│   │   └── ResetPassword.tsx
+│   ├── onboarding/
+│   │   ├── Onboarding.tsx
+│   │   ├── steps/
+│   │   │   ├── Step1ExamSelect.tsx
+│   │   │   ├── Step2ExamDate.tsx
+│   │   │   ├── Step3Subjects.tsx
+│   │   │   └── Step4Setup.tsx
+│   │   └── QuickStudy.tsx
+│   ├── home/
+│   │   ├── Home.tsx             [MOD: ReviewDueWidget + TodayPlanPreview]
+│   │   ├── ReviewDueWidget.tsx  ← [NEW] spaced repetition due list
+│   │   └── TodayPlanPreview.tsx ← [NEW] condensed daily plan on home
+│   ├── planner/
+│   │   └── Planner.tsx          ← [NEW] full daily plan page /planner
+│   ├── learn/
+│   │   ├── Learn.tsx            [MOD: VoiceInput + GroundedInBadge]
+│   │   ├── VoiceInput.tsx       ← [NEW] Hindi/Hinglish speech-to-text
+│   │   └── ReactFlowWrapper.tsx ← lazy-loaded concept map
+│   ├── roadmap/
+│   ├── syllabus/
+│   ├── test/
+│   │   ├── TestConfig.tsx       [MOD: targeted_practice type shown]
+│   │   ├── ExamSession.tsx      [MOD: GazeProctor + per-Q timer]
+│   │   ├── TestResults.tsx      [MOD: SM-2 chips + drill CTA + proctor]
+│   │   └── GazeProctor.tsx      ← [NEW] webcam gaze tracking component
+│   ├── game/
+│   ├── notes/
+│   │   ├── Notes.tsx            [MOD: YouTube tab in import modal]
+│   │   └── SourceViewer.tsx     [MOD: YouTube thumbnail display]
+│   ├── analytics/
+│   │   └── Analytics.tsx        [MOD: SM-2 stats card + graph link]
+│   ├── knowledge/
+│   │   └── KnowledgeGraph.tsx   ← [NEW] /knowledge — concept mastery
+│   ├── community/
+│   ├── mentor/
+│   ├── settings/
+│   ├── progress/
+│   └── system/
+│       ├── NotFound.tsx
+│       └── Offline.tsx
+│
+├── hooks/
+│   ├── useUserContext.ts
+│   ├── useAuth.ts
+│   ├── useTheme.ts
+│   ├── useDebounce.ts
+│   ├── useMediaQuery.ts
+│   ├── useDemoMode.ts           ← [NEW]
+│   ├── useReviewDue.ts          ← [NEW]
+│   ├── useDailyPlan.ts          ← [NEW]
+│   ├── useKnowledgeGraph.ts     ← [NEW]
+│   └── useVoiceInput.ts         ← [NEW]
+│
+├── store/
+│   ├── authStore.ts
+│   ├── userContextStore.ts
+│   ├── themeStore.ts
+│   └── notificationStore.ts
+│
+├── api/
+│   ├── client.ts                [MOD: 401 bypass in demo mode]
+│   ├── endpoints.ts             [MOD: new endpoints added]
+│   └── hooks/
+│       ├── useRoadmap.ts
+│       ├── useChat.ts
+│       ├── useTest.ts
+│       ├── useSyllabus.ts       [MOD: review-due query added]
+│       ├── useAnalytics.ts      [MOD: knowledge graph query]
+│       ├── useCommunity.ts
+│       ├── usePlanner.ts        ← [NEW]
+│       └── useSources.ts        ← [NEW] youtube import mutation
+│
+├── schemas/
+│   ├── auth.schema.ts
+│   ├── onboarding.schema.ts
+│   ├── community.schema.ts
+│   └── sources.schema.ts        ← [NEW] YouTube URL validation
+│
+├── utils/
+│   ├── sanitize.ts
+│   ├── format.ts
+│   ├── examConfig.ts
+│   ├── logger.ts
+│   └── sm2.ts                   ← [NEW] SM-2 label/color helpers
+│
+├── types/
+│   ├── user.types.ts
+│   ├── exam.types.ts
+│   ├── roadmap.types.ts
+│   ├── api.types.ts
+│   ├── planner.types.ts         ← [NEW]
+│   └── knowledge.types.ts       ← [NEW]
+│
+└── constants/
+    ├── exams.ts
+    ├── routes.ts                [MOD: new route constants]
+    ├── queryKeys.ts             [MOD: new query keys]
+    └── syllabus.ts
+
+================================================================================
+SECTION 3: DESIGN SYSTEM
+================================================================================
+(All v1.0 design tokens unchanged — colors, typography, spacing, border-radius,
+shadows, icon circles, buttons, inputs, cards, dividers, loading states,
+empty states, toasts, modals. Refer to v1.0 FDD Section 3 for full details.)
+
+ADDITIONS IN v2.0:
+
+SM-2 MASTERY COLORS                                                    [NEW]
+  These colors represent concept mastery levels in KnowledgeGraph and SM2NextReviewChip.
+  Apply as Tailwind bg/text classes:
+  Learning   (mastery 0.0–0.25): bg-red-100    text-red-700
+  Developing (mastery 0.26–0.50): bg-amber-100  text-amber-700
+  Proficient (mastery 0.51–0.75): bg-sky-100    text-sky-700
+  Mastered   (mastery 0.76–1.00): bg-green-100  text-green-700
+
+GROUNDED-IN BADGE STYLE                                                [NEW]
+  bg-sky-50 dark:bg-sky-900/20 border border-sky-200 dark:border-sky-700
+  rounded-full px-2.5 py-0.5 text-xs text-sky-700 dark:text-sky-300
+  inline-flex items-center gap-1
+  Icon: BookOpen (Lucide, 10px, text-sky-500)
+  Placed below each AI message bubble, inline-flex flex-wrap gap-1.5
+
+REVIEW DUE BADGE STYLE                                                 [NEW]
+  Used on the sidebar Home nav item and ReviewDueWidget header.
+  If dueCount > 0:
+    Small red pill: bg-red-500 text-white text-[10px] font-bold
+    rounded-full px-1.5 py-0.5 ml-auto
+  If dueCount === 0: badge not rendered (don't show "0")
+
+DEMO BANNER STYLE                                                      [NEW]
+  Fixed at bottom of viewport. z-index: 50.
+  bg-slate-900 dark:bg-slate-950 text-white
+  border-t border-slate-700 py-2 px-4
+  flex items-center justify-between gap-3
+  Height: 44px (does not push page content — it overlays)
+  Left: small orange dot (w-2 h-2 bg-orange-400 rounded-full animate-pulse) +
+        "Demo Mode · Arjun Sharma · JEE" in text-xs text-slate-300
+  Right: "Reset demo" button (ghost, text-xs, text-slate-400,
+         hover:text-white border border-slate-600 rounded-lg px-3 py-1)
+  [NOTE] Page content needs pb-11 to avoid being obscured by this banner.
+         Add this to PageWrapper.tsx when VITE_DEMO_MODE=true.
+
+PROCTOR INDICATOR STYLE                                                [NEW]
+  Small overlay in the top-right corner of ExamSession when proctoring is active.
+  bg-black/60 rounded-xl p-2 flex items-center gap-1.5
+  <video> element: w-16 h-12 rounded-lg object-cover (webcam feed)
+  Below video: text-white text-[10px] "🔒 Proctoring active"
+  When a gaze-away event fires: flash a thin red border on the main exam area:
+    border border-red-500 transition-all duration-300 (3 second pulse)
+
+================================================================================
+SECTION 4: GLOBAL LAYOUT & NAVIGATION
+================================================================================
+(All v1.0 app shell, sidebar, topbar, page wrapper, error boundary unchanged.)
+
+SIDEBAR MODIFICATIONS                                                  [MOD]
+
+  New nav item — insert between "Learn" and "Roadmap":
+    - Today's Plan  icon: CalendarCheck  route: /planner   [NEW]
+
+  New nav item — insert between "Analytics" and "Community":
+    - Knowledge     icon: Network        route: /knowledge  [NEW]
+
+  Full sidebar nav order:
+    - Home          icon: Home           route: /home
+                    [BADGE] red pill showing reviewDue count if > 0
+    - Today's Plan  icon: CalendarCheck  route: /planner
+    - Learn         icon: MessageSquare  route: /learn
+    - Roadmap       icon: Map            route: /roadmap
+    - Syllabus      icon: BookOpen       route: /syllabus
+    - Mock Tests    icon: ClipboardList  route: /test
+    - My Notes      icon: FileText       route: /notes
+    - Analytics     icon: BarChart2      route: /analytics
+    - Knowledge     icon: Network        route: /knowledge
+    - Community     icon: Users          route: /community
+    [divider]
+    - Settings      icon: Settings       route: /settings
+
+  ReviewDue badge implementation in Sidebar.tsx:
+    const { data: reviewDue } = useReviewDue()
+    const dueCount = reviewDue?.dueCount ?? 0
+    // Render badge on Home nav item only:
+    {dueCount > 0 && (
+      <span className="bg-red-500 text-white text-[10px] font-bold
+                       rounded-full px-1.5 py-0.5 ml-auto">
+        {dueCount}
+      </span>
+    )}
+
+APP SHELL MODIFICATION                                                 [MOD]
+  When VITE_DEMO_MODE=true, render <DemoBanner /> as the LAST child
+  inside the AppShell's outer div (it uses position:fixed, so placement
+  in DOM doesn't matter — but putting it at the end is cleaner).
+  Also add pb-11 to the <main> element's className when demo mode is active
+  so page content isn't hidden behind the banner.
+
+DEMO BANNER COMPONENT (components/demo/DemoBanner.tsx)                [NEW]
+
+  Only rendered when useDemoMode() returns true.
+  File: src/components/demo/DemoBanner.tsx
+
+  import { useDemoMode } from '../../hooks/useDemoMode'
+  import { client } from '../../api/client'
+  import toast from 'react-hot-toast'
+
+  export function DemoBanner() {
+    const isDemo = useDemoMode()
+    if (!isDemo) return null
+
+    const handleReset = async () => {
+      try {
+        await client.get('/api/demo/reset')
+        toast.success('Demo data reset. Refreshing...')
+        setTimeout(() => window.location.reload(), 1500)
+      } catch {
+        toast.error('Reset failed. Try refreshing manually.')
+      }
+    }
+
+    return (
+      <div className="fixed bottom-0 left-0 right-0 z-50 h-11
+                      bg-slate-900 border-t border-slate-700
+                      flex items-center justify-between px-4 gap-3">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 bg-orange-400 rounded-full animate-pulse" />
+          <span className="text-xs text-slate-300">
+            Demo Mode · Arjun Sharma · JEE · 60 days to exam
+          </span>
+        </div>
+        <button
+          onClick={handleReset}
+          className="text-xs text-slate-400 hover:text-white border
+                     border-slate-600 rounded-lg px-3 py-1
+                     transition-colors duration-150"
+        >
+          Reset demo
+        </button>
+      </div>
+    )
+  }
+
+================================================================================
+SECTION 5: PUBLIC PAGES (no auth required)
+================================================================================
+(All v1.0 landing page sections A–I unchanged: navbar, hero, trust bar,
+features grid, demo section, testimonials, stats bar, final CTA, footer.)
+
+AUTH PAGES — DEMO MODE BEHAVIOUR                                       [MOD]
+
+  When VITE_DEMO_MODE=true:
+
+  Login page (/login):
+    - All form fields remain and are functional
+    - On "Log in" button click: call POST /api/auth/login (DemoAuthController
+      accepts any credentials and returns Arjun's data)
+    - On success: navigate to /home as normal
+    - No error will ever appear (demo backend always returns 200)
+    - Show a small info banner below the form:
+      bg-sky-50 border border-sky-200 rounded-xl p-3 text-xs text-sky-700
+      "Demo mode — any email and password will work. Try: arjun@demo.com / any"
+
+  Signup page (/signup):
+    - Same — all fields remain, form submits, backend returns 201 with demo user
+    - Navigates to /home (onboardingComplete=true in demo)
+    - Same info banner as login
+
+  [NOTE] The auth pages still look and feel completely real. The info banner
+  is a small hint for judges who might wonder why any password works.
+
+================================================================================
+SECTION 6: ONBOARDING
+================================================================================
+(All v1.0 onboarding steps A-D and Path C unchanged.)
+
+DEMO MODE BEHAVIOUR                                                    [DEMO]
+  When VITE_DEMO_MODE=true:
+  If a judge navigates to /onboarding (e.g. from signup):
+    The onboarding wizard still renders and is fully interactive.
+    Submitting Step 4 calls POST /api/onboarding/complete which returns
+    the demo user's existing profile (examType=jee, etc.).
+    After "Start studying →" is clicked: navigate to /home.
+    The demo user's profile is NOT actually changed — the backend returns
+    the fixed demo user data regardless.
+
+================================================================================
+SECTION 7: STUDENT APP PAGES
+================================================================================
+
+--- PAGE: HOME / DASHBOARD ---                                         [MOD]
+Route: /home
+File: src/pages/home/Home.tsx
+
+All v1.0 content remains (greeting, stats strip, streak banner, mode cards,
+recent activity). New sections added:
+
+NEW SECTION — TOP OF PAGE (before mode cards):                         [NEW]
+
+  Section 1: REVIEW DUE WIDGET
+  Rendered by: src/pages/home/ReviewDueWidget.tsx
+  Placed: immediately below the stats strip, above the streak banner.
+  Data: useReviewDue() → GET /api/syllabus/review-due
+
+  When dueCount === 0: do NOT render this widget (no empty state here).
+  When dueCount > 0:
+
+  <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200
+                  dark:border-amber-700 rounded-2xl p-5">
+    Header row:
+      RefreshCw icon (text-amber-500, 18px) + H4 "Review Due Today"
+      + Badge "{dueCount} topics" (amber pill)
+      + "View all" ghost link → /syllabus?filter=review-due
+
+    Topic list (show up to 3, then "+N more" if > 3):
+      Each row: subject badge + topic name + "Study now" link
+        "Study now" → /learn?topic={topicId}&mode=review
+        (pre-fills the chat input with: "Explain {topicName} for quick revision")
+
+    Below list: Body-sm text-amber-700 dark:text-amber-300:
+      "These topics are due based on your spaced repetition schedule.
+       Reviewing them now keeps them locked in long-term."
+  </div>
+
+  [LOG] console.log('[ReviewDue] Loaded:', { dueCount })
+
+  Section 2: TODAY'S PLAN PREVIEW
+  Rendered by: src/pages/home/TodayPlanPreview.tsx
+  Placed: below ReviewDueWidget, above mode cards.
+  Data: useDailyPlan() → GET /api/planner/today
+
+  While loading: SkeletonCard (height 80px, full width)
+  On load:
+
+  <div className="bg-white dark:bg-slate-800 border border-gray-100
+                  dark:border-slate-700 rounded-2xl p-5 shadow-sm">
+    Header row:
+      CalendarCheck icon (text-sky-500, 18px) + H4 "Today's Study Plan"
+      + "{totalMinutes} min planned" (sky pill, right side)
+      + "View full plan" text link → /planner
+
+    Session pills row (horizontal scroll on mobile):
+      For each session in plan.sessions (show up to 4):
+        Pill: colored by type:
+          review:   bg-amber-50 border-amber-200 text-amber-700
+          new:      bg-sky-50 border-sky-200 text-sky-700
+          practice: bg-purple-50 border-purple-200 text-purple-700
+        Content: icon + "{durationMins}min" + topicName (truncated 20 chars)
+          review icon:   RefreshCw (12px)
+          new icon:      BookOpen (12px)
+          practice icon: PenLine (12px)
+
+    Motivation message (below pills, italic, text-gray-500 text-sm):
+      "{plan.motivationMessage}"
+  </div>
+
+MODE CARDS GRID                                                        [MOD]
+  All 5 v1.0 mode cards remain.
+  Add a 6th mode card:                                                 [NEW]
+    Card 6: "Track retention"
+      icon: Network (sky-500)
+      title: "Knowledge graph"
+      desc: "See how well you've mastered each concept — from learning
+             to proficiency."
+      → navigate to /knowledge on click
+
+  Grid is now: grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5
+  (6 cards fit cleanly in 3×2 on desktop)
+
+--- PAGE: TODAY'S PLAN ---                                             [NEW]
+Route: /planner
+File: src/pages/planner/Planner.tsx
+
+HEADER:
+  H2: "Today's Study Plan"
+  Subtext: "{today's date in human format}" (e.g. "Sunday, 22 March 2026")
+  Right: "Refresh plan" ghost button with RefreshCw icon
+    On click: @CacheEvict equivalent — call POST /api/planner/today/session-complete
+    is NOT what we want here. Instead: invalidate the useDailyPlan query:
+    queryClient.invalidateQueries({ queryKey: ['planner', 'today'] })
+    This triggers a refetch which calls the backend (may regenerate plan).
+
+PLAN SUMMARY BAR:
+  Three inline stats:
+    "{totalMinutes} min planned" · "{reviewCount} reviews" · "{newCount} new topics"
+
+MOTIVATION MESSAGE:
+  bg-sky-50 dark:bg-sky-900/20 border border-sky-200 rounded-xl p-4
+  Sparkles icon (sky-500, 16px) + motivationMessage text in Body-lg italic
+
+SESSION LIST:
+  Vertical timeline layout. Each session is a card:
+
+  <div className="flex gap-4 items-start">
+    LEFT: Timeline dot + vertical line
+      Dot color by type:
+        review:   bg-amber-400
+        new:      bg-sky-400
+        practice: bg-purple-400
+      Vertical line: border-l-2 border-gray-100 dark:border-slate-700
+                     (connect dots, last item has no line)
+
+    RIGHT: Session card
+      bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border
+      border-gray-100 dark:border-slate-700
+      flex-1
+
+      TOP ROW:
+        Left:  type badge (amber/sky/purple pill) + "{durationMins} min"
+        Right: "Start →" primary button (sm size)
+               onClick: navigate based on type:
+                 review:   /learn?topic={topicId}&mode=review
+                 new:      /learn?topic={topicId}
+                 practice: /test?topic={topicId}&type=topic_wise
+
+      MIDDLE:
+        H4: {topicName}
+        ExamBadge for subjectName
+
+      BOTTOM:
+        Caption: "{reason}" (the AI-generated one-sentence reason)
+
+      DONE STATE (when session completed):
+        Add a green checkmark overlay: opacity-50 on the card
+        "Start →" becomes green "Done ✓" (non-clickable)
+        Mark as done: POST /api/planner/today/session-complete
+        { topicId, sessionType, actualMins: durationMins }
+
+  After all sessions: if all marked done:
+    Full-width congratulations card:
+    bg-green-50 border border-green-200 rounded-2xl p-6 text-center
+    CheckCircle icon (green-500, 32px) + H3 "Day complete! 🎉"
+    "You've finished all planned sessions for today. Go rest — you earned it."
+
+EMPTY STATE (if plan not generated):
+  CalendarX icon (gray-400, 40px) + H4 "No plan yet"
+  Body: "Your daily plan will be generated automatically. Click refresh to
+         generate today's plan."
+  "Generate plan" primary button → invalidates and refetches
+
+Loading state: 5 SkeletonCards (session cards)
+
+[LOG] console.log('[Planner] Loaded:', { sessions, totalMins, date })
+
+--- PAGE: AI TUTOR CHAT ---                                            [MOD]
+Route: /learn
+File: src/pages/learn/Learn.tsx
+
+All v1.0 chat interface unchanged (streaming, concept maps, YouTube cards,
+chat history, RAG mode toggle, source picker, message bubbles, input area).
+
+NEW ADDITIONS:
+
+1. GROUNDED-IN BADGES (below AI messages)                              [NEW]
+
+  After each AI message bubble, if message.groundedIn is non-empty:
+  Render a row of GroundedInBadge components.
+
+  File: src/components/shared/GroundedInBadge.tsx
+
+  interface GroundedInBadgeProps { source: string }
+
+  Renders:
+  <span className="bg-sky-50 dark:bg-sky-900/20 border border-sky-200
+                   dark:border-sky-700 rounded-full px-2.5 py-0.5
+                   text-xs text-sky-700 dark:text-sky-300
+                   inline-flex items-center gap-1">
+    <BookOpen size={10} className="text-sky-500" />
+    {source}
+  </span>
+
+  In Learn.tsx, after each AI message bubble:
+  {message.groundedIn?.length > 0 && (
+    <div className="flex flex-wrap gap-1.5 mt-1.5 ml-1">
+      {message.groundedIn.map(s => <GroundedInBadge key={s} source={s} />)}
+    </div>
+  )}
+
+  [NOTE] message.groundedIn comes from the SSE "done" event:
+  data: {"type":"done","conceptMap":{...},"groundedIn":["NCERT Physics Ch.5"]}
+  Parse this in the SSE handler and store on the message object.
+
+2. VOICE INPUT — HINDI / HINGLISH                                      [NEW]
+
+  File: src/pages/learn/VoiceInput.tsx
+
+  Placed: inside the input area row, between the textarea and Send button.
+  Icon: Mic (Lucide) in ghost icon button.
+
+  STATE:
+    idle:      Mic icon, text-gray-400
+    recording: MicOff icon, text-red-500, bg-red-50, animate-pulse border
+    error:     tooltip "Voice not supported in this browser"
+
+  IMPLEMENTATION (useVoiceInput hook):
+
+  File: src/hooks/useVoiceInput.ts
+
+  export function useVoiceInput(onResult: (text: string) => void,
+                                language: 'hi-IN' | 'en-IN' | 'en-US') {
+    const [isRecording, setIsRecording] = useState(false)
+    const recognitionRef = useRef<SpeechRecognition | null>(null)
+
+    const isSupported = typeof window !== 'undefined' &&
+                        ('SpeechRecognition' in window ||
+                         'webkitSpeechRecognition' in window)
+
+    const startRecording = () => {
+      if (!isSupported) return
+      const SpeechRecognition = window.SpeechRecognition ||
+                                 window.webkitSpeechRecognition
+      const recognition = new SpeechRecognition()
+      recognition.lang = language      // 'hi-IN' for Hindi
+      recognition.continuous = false
+      recognition.interimResults = false
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript
+        onResult(transcript)            // sets chat textarea value
+        setIsRecording(false)
+      }
+
+      recognition.onerror = () => setIsRecording(false)
+      recognition.onend   = () => setIsRecording(false)
+
+      recognition.start()
+      recognitionRef.current = recognition
+      setIsRecording(true)
+    }
+
+    const stopRecording = () => {
+      recognitionRef.current?.stop()
+      setIsRecording(false)
+    }
+
+    return { isSupported, isRecording, startRecording, stopRecording }
+  }
+
+  LANGUAGE SWITCHER:
+  Placed inside the input area, right of the Mic button.
+  A small chip: "EN" or "हि" (Hindi Devanagari abbreviation)
+  Clicking toggles between en-IN and hi-IN.
+  State stored in: useState<'en-IN' | 'hi-IN'>('en-IN')
+  Tooltip: "Switch to Hindi / Switch to English"
+
+  TTS (Text-to-Speech — AI reads response aloud):                      [NEW]
+  After each AI message streams to completion:
+  If language is 'hi-IN' AND ttsEnabled (user preference, default: off):
+    const utterance = new SpeechSynthesisUtterance(plainText)
+    utterance.lang = 'hi-IN'
+    window.speechSynthesis.speak(utterance)
+  TTS toggle: speaker icon (Volume2 / VolumeX) in the input area row.
+  Default: OFF (to not surprise judges with sudden audio).
+
+  [A11Y] Mic button has aria-label="Start voice input"
+  [LOG] console.log('[Voice] Recording started, lang:', language)
+  [LOG] console.log('[Voice] Transcript received:', transcript)
+
+3. TOPIC PRE-FILL FROM URL PARAMS                                      [NEW]
+
+  Learn.tsx reads URL search params on mount:
+  const [searchParams] = useSearchParams()
+  const topicId = searchParams.get('topic')
+  const mode = searchParams.get('mode')  // 'review' | null
+
+  If topicId is present:
+    Auto-create a new conversation and pre-fill the textarea:
+    mode === 'review':
+      "Give me a quick revision of {topicName}. Focus on key formulae and
+       common JEE mistakes."
+    mode === null (new):
+      "Explain {topicName} in detail for JEE preparation."
+
+  Then auto-submit the message (as if user typed it and pressed Enter).
+  This makes "Study now" links from ReviewDueWidget feel seamless.
+
+--- PAGE: ROADMAP --- (unchanged from v1.0)
+--- PAGE: SYLLABUS TRACKER ---                                         [MOD]
+Route: /syllabus
+File: src/pages/syllabus/Syllabus.tsx
+
+All v1.0 content unchanged.
+
+SM-2 ADDITIONS:                                                        [NEW]
+
+  When a topic is marked as 'done', the API response now includes SM-2 fields:
+  nextReviewDate, intervalDays, repetitionCount.
+
+  Show SM2NextReviewChip below the topic row when topic is 'done':
+    File: src/components/shared/SM2NextReviewChip.tsx
+    Renders: small pill showing next review date
+    If nextReviewDate === today: bg-red-100 text-red-700 "Review due today"
+    If nextReviewDate < today:   bg-red-100 text-red-700 "Overdue by {n} days"
+    If nextReviewDate within 3 days: bg-amber-100 text-amber-700 "Review in {n} days"
+    If nextReviewDate > 3 days: bg-gray-100 text-gray-500 "Review on {date}"
+
+  Topic-done micro-animation ADDITION:                                 [MOD]
+    After the existing confetti + toast, also show a small toast:
+    "Next review scheduled: {nextReviewDate}" (duration 4000ms)
+    This visually confirms the SM-2 algorithm fired.
+
+  REVIEW DUE FILTER:                                                   [NEW]
+    Add a new filter chip to the filter row: "Due for review" (amber chip)
+    When active: show only topics where status='done' AND nextReviewDate <= today
+    This chip is highlighted by default when navigating from the
+    ReviewDueWidget "View all" link (/syllabus?filter=review-due).
+
+    URL param handling:
+    const [searchParams] = useSearchParams()
+    const filterParam = searchParams.get('filter')
+    if (filterParam === 'review-due') → activate "Due for review" filter on mount
+
+--- PAGE: MOCK TEST CONFIG ---                                         [MOD]
+Route: /test
+File: src/pages/test/TestConfig.tsx
+
+All v1.0 content unchanged.
+
+ADDITION — TARGETED PRACTICE ENTRY:                                    [NEW]
+  Above the 3 test type cards, if there are pending targeted drill sessions:
+  (check via useQuery: GET /api/test/sessions?type=targeted_practice&status=in_progress)
+
+  Show a highlighted card above the type grid:
+  bg-purple-50 dark:bg-purple-900/20 border border-purple-200 rounded-2xl p-5
+
+  PenLine icon (purple-500) + H4 "Targeted Practice Ready"
+  Body: "Based on your recent test, we've prepared 3 focused questions on
+         {topicName}. Take it now while the concept is fresh."
+  "Start drill →" primary button → /test/session/{drillSessionId}
+
+  [NOTE] This is the most impressive demo moment — judges see the system
+  automatically respond to a wrong answer with a targeted drill.
+
+--- PAGE: EXAM INTERFACE ---                                           [MOD]
+Route: /test/session/:id
+File: src/pages/test/ExamSession.tsx
+
+All v1.0 content unchanged (NTA-style interface, section tabs, question
+palette, timer, submit flow, navigation warning).
+
+NEW ADDITIONS:
+
+1. PER-QUESTION TIMER                                                  [NEW]
+
+  Track time spent on each question for time-on-question analysis.
+  Implementation:
+    const questionStartTime = useRef<number>(Date.now())
+    const questionTimings = useRef<Record<string, number>>({}) // questionId → ms
+
+    On every question navigation (next/prev/palette click):
+      questionTimings.current[currentQuestionId] =
+        Date.now() - questionStartTime.current
+      questionStartTime.current = Date.now()
+
+  On test submit:
+    For each answer in the submit payload, include:
+    timeTakenSecs: Math.round(questionTimings.current[questionId] / 1000)
+
+  Visual indicator (subtle):
+    Small stopwatch icon (Clock, 12px, text-gray-400) + elapsed seconds
+    shown below the question number in the left panel.
+    Updates every second: "{n}s on this question"
+    Goes amber (text-amber-500) after 90 seconds: "Spending a lot of time here"
+    This subtly indicates struggle questions for time-on-question analysis.
+
+2. GAZE PROCTORING COMPONENT                                           [NEW]
+
+  File: src/pages/test/GazeProctor.tsx
+
+  Lazy-loaded — import only when test starts.
+
+  ACTIVATION:
+  At the start of ExamSession, show a one-time consent dialog:
+  bg-white dark:bg-slate-800 rounded-2xl shadow-2xl p-6 max-w-sm mx-auto
+  (positioned as a modal overlay before the test begins)
+
+    Title: H4 "Enable on-device proctoring?"
+    Body: "PrepCreatine can track your eye movements to simulate a real exam
+           environment. Everything happens in your browser — nothing is uploaded."
+    Two buttons:
+      "Enable proctoring" (primary) → start FaceMesh
+      "Skip" (ghost) → proceed without proctoring
+    Small text below: "🔒 100% private — no data leaves your device"
+
+  PROCTORING IMPLEMENTATION:
+  Only activated if user clicked "Enable proctoring".
+
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const gazeEvents = useRef<{ gaze_away: 0, tab_switch: 0, face_lost: 0 }>
+    ({ gaze_away: 0, tab_switch: 0, face_lost: 0 })
+
+  Step 1: Get webcam stream
+    navigator.mediaDevices.getUserMedia({ video: true })
+    Attach to <video ref={videoRef} autoPlay playsInline muted />
+
+  Step 2: Load FaceMesh (lazy import)
+    const facemesh = await import('@mediapipe/face_mesh')
+    const faceMesh = new facemesh.FaceMesh({ ... })
+    faceMesh.onResults(onResults)
+
+  Step 3: Run inference every 500ms
+    setInterval(() => {
+      if (videoRef.current) faceMesh.send({ image: videoRef.current })
+    }, 500)
+
+  Step 4: onResults(results)
+    if (!results.multiFaceLandmarks?.length) {
+      // No face detected
+      gazeEvents.current.face_lost++
+      return
+    }
+    const landmarks = results.multiFaceLandmarks[0]
+    // Check gaze direction using iris landmarks (index 468-472)
+    // If iris X position < 0.3 or > 0.7: looking left/right (gaze away)
+    const irisX = landmarks[468].x
+    if (irisX < 0.3 || irisX > 0.7) gazeEvents.current.gaze_away++
+
+  Step 5: Tab switch detection (browser native)
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) gazeEvents.current.tab_switch++
+    })
+
+  VISUAL INDICATOR (in test interface):
+  Small video preview in top-right corner of the exam area:
+    <div className="fixed top-20 right-4 z-40 bg-black/60 rounded-xl p-2">
+      <video ref={videoRef} className="w-16 h-12 rounded-lg object-cover" />
+      <p className="text-white text-[10px] text-center mt-1">🔒 Proctoring</p>
+    </div>
+
+  When gaze_away event fires:
+    Red border flash on the exam area (border-2 border-red-500, 2 second duration)
+    console.log('[Proctor] Gaze away detected')
+
+  ON TEST SUBMIT:
+    POST /api/proctor/events {
+      testSessionId: sessionId,
+      events: [
+        { eventType: 'gaze_away', count: gazeEvents.current.gaze_away },
+        { eventType: 'tab_switch', count: gazeEvents.current.tab_switch },
+        { eventType: 'face_lost', count: gazeEvents.current.face_lost }
+      ]
+    }
+    Stop webcam stream: videoRef.current.srcObject.getTracks().forEach(t => t.stop())
+
+  [NOTE] FaceMesh is ~3MB. Lazy import means it only loads during test,
+  not on app startup. If loading FaceMesh fails (network, old browser):
+  proctoring is silently disabled. The test still works normally.
+  [LOG] console.log('[Proctor] FaceMesh loaded and running')
+  [LOG] console.log('[Proctor] Events at submit:', gazeEvents.current)
+
+--- PAGE: TEST RESULTS ---                                             [MOD]
+Route: /test/results/:id
+File: src/pages/test/TestResults.tsx
+
+All v1.0 content unchanged (summary card, section-wise breakdown, score
+trend chart, question review list, bottom actions).
+
+NEW ADDITIONS:
+
+1. SM-2 UPDATES PANEL                                                  [NEW]
+
+  If response.sm2Updates is non-empty, show below section-wise breakdown:
+
+  <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm
+                  border border-gray-100 dark:border-slate-700">
+    H4: "Your spaced repetition schedule updated"
+    Subtext: "We've adjusted your review schedule based on this test."
+
+    Grid (grid-cols-2 sm:grid-cols-3 gap-3):
+    For each sm2Update:
+      <div className="bg-gray-50 dark:bg-slate-700 rounded-xl p-3">
+        <p className="text-xs text-gray-500 mb-1">{topicName}</p>
+        <SM2NextReviewChip nextReviewDate={update.nextReviewDate}
+                           intervalDays={update.intervalDays} />
+      </div>
+  </div>
+
+2. TARGETED DRILL CTA                                                  [NEW]
+
+  If response.targetedDrillSessionId is non-null:
+
+  <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200
+                  rounded-2xl p-5 flex items-center justify-between gap-4">
+    LEFT:
+      PenLine icon (purple-500, 24px)
+      H4: "Targeted practice generated"
+      Body: "We noticed some gaps. We've created 3 focused questions to
+             address them right now."
+    RIGHT:
+      <Button variant="primary" className="bg-purple-600 hover:bg-purple-700 shrink-0"
+              onClick={() => navigate(`/test/session/${response.targetedDrillSessionId}`)}>
+        Practice now →
+      </Button>
+  </div>
+
+3. PROCTORING SUMMARY                                                  [NEW]
+
+  If proctoringSummary is non-null (user had proctoring enabled):
+
+  <div className="bg-gray-50 dark:bg-slate-700 rounded-xl p-4">
+    H4: "Proctoring summary"
+    Three inline chips:
+      "👁 {gazeAwayCount} gaze-away events"
+      "🔁 {tabSwitchCount} tab switches"
+      "👤 {faceLostCount} face-not-detected events"
+    Integrity badge (right side):
+      "High" → green-100 text-green-700
+      "Medium" → amber-100 text-amber-700
+      "Low" → red-100 text-red-700
+    Small text: "All processing was done on-device. No data was uploaded."
+  </div>
+
+--- PAGE: GAME MODE --- (unchanged from v1.0)
+
+--- PAGE: MY NOTES / SOURCES ---                                       [MOD]
+Route: /notes
+File: src/pages/notes/Notes.tsx
+
+All v1.0 content unchanged (header, sources grid, delete confirmation).
+
+ADD SOURCE MODAL — YOUTUBE TAB                                         [NEW]
+
+  The modal now has FOUR tabs (was three):
+    "Paste URL" | "YouTube Video" | "Upload PDF" | "Paste text"
+
+  NEW TAB: "YouTube Video"
+    Icon: Youtube icon (Lucide, text-red-500) in tab label
+
+    Content:
+    <div className="space-y-4">
+      <p className="text-sm text-gray-500">
+        Paste any YouTube educational video URL. We'll extract the transcript,
+        generate structured notes, and make it searchable in your AI chat.
+      </p>
+
+      Input:
+        Label: "YouTube URL"
+        Placeholder: "https://youtube.com/watch?v=..."
+        Zod validation: z.string().url().refine(
+          url => url.includes('youtube.com/watch') || url.includes('youtu.be/'),
+          { message: "Please paste a YouTube video URL." }
+        )
+        Helper text: "Works best with videos that have subtitles/captions."
+
+      "Import video" primary button → POST /api/sources/youtube { url }
+      Loading state: "Extracting transcript... this takes ~15 seconds"
+        Show animated progress bar (indeterminate, sky-500)
+        Below: fun message cycle every 3 seconds:
+          "Reading transcript..."
+          "Generating study guide..."
+          "Building concept map..."
+    </div>
+
+    On success:
+      Close modal
+      Toast: "Video processed! Study guide ready in a moment."
+      The new source card appears with thumbnail + YouTube badge.
+
+  Source card MODIFICATION for YouTube type:                           [MOD]
+    If source.type === 'youtube_video':
+      Show thumbnail at top: img tag with thumbnailUrl
+        aspect-ratio: 16/9, rounded-t-xl, w-full object-cover
+      YouTube logo pill below thumbnail: bg-red-50 text-red-600 text-xs
+        "YouTube" + Youtube icon (10px)
+      The rest of the card is identical to URL sources.
+
+--- SOURCE VIEWER ---                                                  [MOD]
+Route: /notes/:sourceId
+File: src/pages/notes/SourceViewer.tsx
+
+All v1.0 content unchanged (Study Guide, Chat, Mind Map tabs).
+
+YOUTUBE SOURCE ADDITION:                                               [NEW]
+  If source.type === 'youtube_video':
+    Above the tabs, show a video header:
+    <div className="flex gap-4 items-start mb-6">
+      <div className="w-40 flex-shrink-0">
+        <img src={source.thumbnailUrl} alt="Video thumbnail"
+             className="w-full rounded-xl aspect-video object-cover" />
+      </div>
+      <div>
+        <Badge className="bg-red-50 text-red-600 mb-2">
+          Youtube icon · YouTube Video
+        </Badge>
+        <H3>{source.title}</H3>
+        <p className="text-sm text-gray-500 mt-1">
+          Transcript extracted · {source.topicCount} concepts identified
+        </p>
+        <a href={source.originalUrl} target="_blank" rel="noopener noreferrer"
+           className="text-xs text-sky-500 hover:underline mt-1 inline-block">
+          Watch on YouTube ↗
+        </a>
+      </div>
+    </div>
+
+--- PAGE: ANALYTICS ---                                                [MOD]
+Route: /analytics
+File: src/pages/analytics/Analytics.tsx
+
+All v1.0 content unchanged (summary cards, heatmap, score trends,
+subject completion, weak/strong topics, readiness score).
+
+NEW ADDITIONS:
+
+SPACED REPETITION STATS CARD (new row, after summary cards):          [NEW]
+  grid-cols-2 md:grid-cols-4 gap-4 (4 new stat chips)
+  Data from response.spacedRepStats:
+
+  Card 1: "Due for review today"
+    Large number: {totalDueToday}
+    If > 0: text-red-600 with a small red dot
+    Link: "Review now →" → /syllabus?filter=review-due
+  Card 2: "Topics scheduled"
+    Large number: {totalScheduled}
+    Caption: "have a next review date set"
+  Card 3: "Avg ease factor"
+    Large number: {averageEasinessFactor.toFixed(1)}
+    Caption: "SM-2 ease (higher = stronger memory)"
+    Progress bar below: width = (easinessFactor - 1.3) / (3.5 - 1.3) * 100
+  Card 4: "Mastered topics"
+    Large number: {masteredTopics}
+    Caption: "reviewed 3+ times"
+    Icon: Star (amber-500, 14px) inline
+
+  Below the 4 cards, a link row:
+  "View your complete Knowledge Graph →" → /knowledge
+  (with Network icon, text-sky-500)
+
+--- PAGE: KNOWLEDGE GRAPH ---                                          [NEW]
+Route: /knowledge
+File: src/pages/knowledge/KnowledgeGraph.tsx
+
+Data: useKnowledgeGraph() → GET /api/analytics/knowledge-graph
+
+HEADER:
+  H2: "Knowledge Graph"
+  Subtext: "{totalConcepts} concepts tracked across your studied topics"
+
+STATS BAR (4 mini cards):
+  Total concepts tracked
+  Mastered concepts (mastery >= 0.76)
+  Developing concepts (mastery 0.26–0.50)
+  Still learning (mastery < 0.26)
+
+TOPIC GROUPS (accordion, one per topic):
+  Each group header:
+    H4: {topicName} · "{conceptCount} concepts" · avg mastery badge
+    Click to expand/collapse (Framer Motion height animation)
+
+  Inside each expanded group:
+    Mini mastery bars (one per concept):
+    <div className="flex items-center gap-3">
+      <span className="text-sm text-gray-700 w-40 truncate">{concept}</span>
+      <div className="flex-1 bg-gray-100 dark:bg-slate-700 rounded-full h-2">
+        <div className="rounded-full h-2 transition-all duration-800"
+             style={{ width: `${mastery * 100}%`,
+                      background: masteryColor(mastery) }} />
+      </div>
+      <span className="text-xs {masteryTextClass}">{masteryLabel}</span>
+    </div>
+    
+    masteryColor(m): m < 0.25 → '#EF4444' (red) | m < 0.5 → '#F59E0B' (amber)
+                              | m < 0.75 → '#0EA5E9' (sky) | else → '#22C55E' (green)
+
+REACT FLOW VISUALIZATION (optional, below the accordion):
+  A React Flow canvas showing all concepts as nodes, colored by mastery.
+  Node style: rounded-full pill shape, 80×30px
+    Color: same 4 mastery colors mapped to background
+  No edges needed (concepts are standalone — topics group them)
+  Controls: zoom, fit view
+  On node click: tooltip showing concept name + mastery % + topic name
+
+  [PERF] Only render React Flow if totalConcepts <= 50.
+  If > 50: show a message "Graph hidden for performance (too many nodes).
+           Use the list above to explore concepts."
+  [PERF] Lazy-load React Flow as always.
+
+EMPTY STATE (no concepts yet):
+  Network icon (gray-400, 40px) + H4 "No concepts tracked yet"
+  Body: "Start chatting with the AI tutor. Every concept you explore
+         gets added to your knowledge graph automatically."
+  "Start learning →" primary button → /learn
+
+[LOG] console.log('[KnowledgeGraph] Loaded:', { totalConcepts, topics })
+
+--- PAGE: COMMUNITY FEED --- (unchanged from v1.0)
+--- PAGE: COMMUNITY THREAD --- (unchanged from v1.0)
+--- PAGE: SETTINGS --- (unchanged from v1.0)
+--- PAGE: MENTOR DASHBOARD --- (unchanged from v1.0)
+--- PAGE: PUBLIC PROGRESS LINK --- (unchanged from v1.0)
+--- SYSTEM PAGES --- (unchanged from v1.0)
+
+================================================================================
+SECTION 8: API CLIENT & ERROR HANDLING                                [MOD]
+================================================================================
+
+FILE: src/api/client.ts
+
+All v1.0 Axios config unchanged (baseURL, withCredentials, timeout,
+request interceptor, retry logic).
+
+DEMO MODE MODIFICATION:                                                [MOD]
+
+  In the response error interceptor, modify the 401 handler:
+
+  // v1.0 (original):
+  if (status === 401) {
+    window.location.href = '/login'
+    return Promise.reject(error)
+  }
+
+  // v2.0 (demo mode aware):
+  if (status === 401) {
+    const isDemo = import.meta.env.VITE_DEMO_MODE === 'true'
+    if (!isDemo) {
+      window.location.href = '/login'
+    }
+    // In demo mode: swallow the 401. The DemoUserFilter should never
+    // return 401, but if it does (e.g. demo user not seeded yet):
+    // show a toast instead of redirecting.
+    if (isDemo) {
+      toast.error('Demo session error. Please refresh the page.')
+    }
+    return Promise.reject(error)
+  }
+
+FILE: src/api/endpoints.ts                                             [MOD]
+  All v1.0 endpoints unchanged. New additions:
+
+  // Spaced Repetition
+  REVIEW_DUE:         '/api/syllabus/review-due',
+  SPACED_REP_UPDATE:  (topicId: string) => `/api/syllabus/spaced-rep/${topicId}`,
+
+  // Daily Planner
+  PLANNER_TODAY:      '/api/planner/today',
+  PLANNER_WEEK:       '/api/planner/week',
+  PLANNER_COMPLETE:   '/api/planner/today/session-complete',
+
+  // Knowledge Graph
+  KNOWLEDGE_GRAPH:    '/api/analytics/knowledge-graph',
+
+  // YouTube Source
+  SOURCES_YOUTUBE:    '/api/sources/youtube',
+
+  // Proctoring
+  PROCTOR_EVENTS:     '/api/proctor/events',
+  PROCTOR_SUMMARY:    (sessionId: string) => `/api/proctor/summary/${sessionId}`,
+
+  // Demo
+  DEMO_STATUS:        '/api/demo/status',
+  DEMO_RESET:         '/api/demo/reset',
+
+FILE: src/api/hooks/usePlanner.ts                                      [NEW]
+
+  export function useDailyPlan() {
+    return useQuery({
+      queryKey: ['planner', 'today'],
+      queryFn: () => client.get(endpoints.PLANNER_TODAY).then(r => r.data),
+      staleTime: 1000 * 60 * 5,    // 5 min — plan doesn't change often
+      retry: 1,
+    })
+  }
+
+  export function useCompleteSession() {
+    return useMutation({
+      mutationFn: (payload: { topicId: string; sessionType: string; actualMins: number }) =>
+        client.post(endpoints.PLANNER_COMPLETE, payload),
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['planner', 'today'] })
+      },
+    })
+  }
+
+FILE: src/api/hooks/useSyllabus.ts                                     [MOD]
+
+  // ADDITION — new hook for review-due list:
+  export function useReviewDue() {
+    return useQuery({
+      queryKey: ['syllabus', 'review-due'],
+      queryFn: () => client.get(endpoints.REVIEW_DUE).then(r => r.data),
+      staleTime: 1000 * 60 * 2,    // 2 min — check frequently for demo
+      refetchOnWindowFocus: true,   // refresh when tab regains focus
+    })
+  }
+
+FILE: src/api/hooks/useAnalytics.ts                                    [MOD]
+
+  // ADDITION — knowledge graph hook:
+  export function useKnowledgeGraph() {
+    return useQuery({
+      queryKey: ['analytics', 'knowledge-graph'],
+      queryFn: () => client.get(endpoints.KNOWLEDGE_GRAPH).then(r => r.data),
+      staleTime: 1000 * 60 * 5,
+    })
+  }
+
+FILE: src/api/hooks/useSources.ts                                      [NEW]
+
+  export function useImportYouTube() {
+    return useMutation({
+      mutationFn: (url: string) =>
+        client.post(endpoints.SOURCES_YOUTUBE, { url }).then(r => r.data),
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ['sources'] })
+      },
+    })
+  }
+
+================================================================================
+SECTION 9: NEW CUSTOM HOOKS
+================================================================================
+
+FILE: src/hooks/useDemoMode.ts                                         [NEW]
+
+  export function useDemoMode(): boolean {
+    return import.meta.env.VITE_DEMO_MODE === 'true'
+  }
+
+  [NOTE] This is a trivial hook but centralizes the demo mode check.
+  Always use this hook rather than checking VITE_DEMO_MODE directly.
+
+FILE: src/hooks/useVoiceInput.ts  (full implementation in Section 7 / Learn)
+
+FILE: src/hooks/useReviewDue.ts                                        [NEW]
+
+  Re-exports the useReviewDue query from useSyllabus.ts.
+  Also computes derived values:
+    dueCount: number
+    overdueTopics: ReviewDueItem[]   (nextReviewDate < today)
+    dueTodayTopics: ReviewDueItem[]  (nextReviewDate === today)
+
+FILE: src/hooks/useKnowledgeGraph.ts                                   [NEW]
+
+  Re-exports from useAnalytics.ts with mastery label helper:
+  export function getMasteryLabel(mastery: number): string {
+    if (mastery < 0.26) return 'Learning'
+    if (mastery < 0.51) return 'Developing'
+    if (mastery < 0.76) return 'Proficient'
+    return 'Mastered'
+  }
+
+================================================================================
+SECTION 10: FORMS — UNIVERSAL VALIDATION RULES
+================================================================================
+(All v1.0 universal validation rules unchanged.)
+
+NEW VALIDATION RULES IN v2.0:                                          [NEW]
+
+  YouTube URL validation (in src/schemas/sources.schema.ts):
+    z.string()
+      .url({ message: "Please include https:// at the start." })
+      .refine(
+        url => /youtube\.com\/watch\?v=[\w-]{11}/.test(url) ||
+               /youtu\.be\/[\w-]{11}/.test(url),
+        { message: "Please paste a YouTube video URL." }
+      )
+    Friendly message examples:
+      "That doesn't look like a YouTube URL."
+      "Please paste a link from youtube.com or youtu.be"
+
+  SM-2 quality (internal, not user-facing): always 0–5, computed from score.
+
+================================================================================
+SECTION 11: PERFORMANCE CHECKLIST
+================================================================================
+(All v1.0 checklist items unchanged.)
+
+NEW IN v2.0:                                                           [NEW]
+  [ ] GazeProctor (@mediapipe/face_mesh ~3MB) — MUST be lazy-loaded
+      import(() => import('./GazeProctor')) only inside ExamSession
+      and only after user consents to proctoring
+  [ ] KnowledgeGraph React Flow — only rendered if totalConcepts <= 50
+  [ ] VoiceInput Web Speech API — graceful degradation if unsupported
+      (show icon as disabled with tooltip, never crash)
+  [ ] DemoBanner — position:fixed means it doesn't affect page layout
+      but add pb-11 to main element in demo mode to avoid content cutoff
+  [ ] ReviewDueWidget — refetchOnWindowFocus: true means it refreshes
+      when judge switches back to the app. Good for demo realism.
+  [ ] TodayPlanPreview on home — staleTime: 5min so home loads fast
+
+================================================================================
+SECTION 12: ACCESSIBILITY (A11Y)
+================================================================================
+(All v1.0 accessibility rules unchanged.)
+
+NEW IN v2.0:                                                           [NEW]
+  [ ] VoiceInput Mic button: aria-label="Start voice input in Hindi"
+                              aria-pressed={isRecording}
+  [ ] GazeProctor video: aria-hidden="true" (decorative, not content)
+  [ ] GazeProctor consent modal: focus-trap inside modal
+      First focus: "Enable proctoring" button
+  [ ] ReviewDueWidget: role="region" aria-label="Review due today"
+  [ ] KnowledgeGraph bars: role="progressbar" aria-valuenow={mastery*100}
+                            aria-valuemin="0" aria-valuemax="100"
+  [ ] DemoBanner: role="status" aria-live="polite"
+  [ ] SM2NextReviewChip: title attribute with full date
+      (chip may truncate date, tooltip shows full text)
+
+================================================================================
+SECTION 13: APP.TSX — ROUTING                                          [MOD]
+================================================================================
+
+FILE: src/App.tsx
+
+All v1.0 routes unchanged. New routes added:
+
+  <Route path="/planner"   element={<Planner />} />
+  <Route path="/knowledge" element={<KnowledgeGraph />} />
+
+DEMO MODE ROUTING:                                                     [NEW]
+
+  In demo mode, ALL routes inside the authenticated section (/home, /learn,
+  /roadmap, /syllabus, /test, /game, /notes, /analytics, /planner,
+  /knowledge, /community, /mentor, /settings) must be accessible without
+  an auth check.
+
+  v1.0 had a PrivateRoute wrapper that redirected to /login on 401.
+  Modify PrivateRoute to be demo-aware:
+
+  function PrivateRoute({ children }: { children: ReactNode }) {
+    const isDemo = useDemoMode()
+    const { isAuthenticated, isLoading } = useAuth()
+
+    if (isDemo) return <>{children}</>  // always allow in demo mode
+
+    if (isLoading) return <PageSkeleton />
+    if (!isAuthenticated) return <Navigate to="/login" replace />
+    return <>{children}</>
+  }
+
+  [NOTE] This is the key frontend change for demo mode. No redirects to
+  /login ever happen when VITE_DEMO_MODE=true.
+
+ROUTE CONSTANTS (src/constants/routes.ts)                              [MOD]
+  Add:
+    PLANNER:         '/planner',
+    KNOWLEDGE:       '/knowledge',
+
+================================================================================
+SECTION 14: GLOBAL STATE — ZUSTAND STORES
+================================================================================
+(All v1.0 stores unchanged: authStore, userContextStore, themeStore,
+notificationStore.)
+
+userContextStore.ts MODIFICATION:                                      [MOD]
+  Add field: reviewDueCount: number (default 0)
+  Action: setReviewDueCount(count: number)
+  This is set once by ReviewDueWidget after loading, used by Sidebar badge.
+
+  [NOTE] We could fetch this from useReviewDue everywhere, but the Sidebar
+  needs a global value to render the badge without its own query.
+  Setting it in the store on first ReviewDueWidget load is simpler.
+
+authStore.ts MODIFICATION:                                             [MOD]
+  Add demo-aware initialization:
+  In initializeAuth() (called on app start):
+    if (import.meta.env.VITE_DEMO_MODE === 'true') {
+      // Pre-populate auth state with demo user (no API call needed)
+      set({
+        isAuthenticated: true,
+        user: {
+          userId: '00000000-0000-0000-0000-000000000001',
+          email: 'arjun@prepcreatine.demo',
+          fullName: 'Arjun Sharma',
+          role: 'STUDENT',
+          onboardingComplete: true,
+          examType: 'jee',
+          isEmailVerified: true,
+        }
+      })
+      return
+    }
+    // Normal: call GET /api/auth/me
+    ...
+
+================================================================================
+SECTION 15: THEME IMPLEMENTATION
+================================================================================
+(Unchanged from v1.0 — class-based dark mode, themeStore, inline script
+in index.html.)
+
+================================================================================
+SECTION 16: "BROUGHT TO YOU BY RUDRA AGRAWAL" PLACEMENT
+================================================================================
+(All 5 placements from v1.0 unchanged.)
+
+================================================================================
+SECTION 17: PREPCREATINE LOGO SPECIFICATION
+================================================================================
+(Unchanged from v1.0.)
+
+================================================================================
+SECTION 18: ANIMATION GUIDELINES
+================================================================================
+(All v1.0 animation principles and standard animations unchanged.)
+
+NEW ANIMATIONS IN v2.0:                                                [NEW]
+
+  SM-2 update pulse (in TestResults, when SM2 panel appears):
+    Each SM2 chip animates in with: opacity 0→1, y 8→0, staggered by 100ms
+    Uses Framer Motion staggerChildren on the grid container.
+
+  Mastery bar fill (KnowledgeGraph):
+    All bars animate from width: 0 to actual mastery % over 800ms
+    Triggered on component mount. ease-out.
+    Use CSS transition (not JS): transition: width 800ms ease-out
+
+  ReviewDueWidget entrance:
+    Slides down from opacity 0, y -8 → opacity 1, y 0
+    Spring (stiffness: 200, damping: 20)
+    Only on first mount (not on refetch)
+
+  Session complete check (Planner):
+    When "Done" is clicked on a session:
+      The session card fades to opacity-50 (transition 300ms)
+      A green checkmark icon scales in: scale 0→1.2→1 (spring, 200ms)
+      A subtle confetti burst (canvas-confetti, 15 particles, green + sky)
+
+================================================================================
+SECTION 19: COMPLETE EXAM SYLLABUS DATA
+================================================================================
+(All v1.0 syllabus data unchanged — JEE, NEET, CUET, GATE, CAT, UPSC,
+State PETs with full chapter/topic/prerequisite data. See v1.0 FDD
+Section 19 for complete data. This section is unchanged in v2.0.)
+
+================================================================================
+SECTION 20: UTILITY FILES
+================================================================================
+
+FILE: src/utils/sm2.ts                                                 [NEW]
+
+  Helpers for displaying SM-2 data in the UI.
+
+  export function getMasteryLabel(mastery: number): string {
+    if (mastery < 0.26) return 'Learning'
+    if (mastery < 0.51) return 'Developing'
+    if (mastery < 0.76) return 'Proficient'
+    return 'Mastered'
+  }
+
+  export function getMasteryColorClass(mastery: number): string {
+    if (mastery < 0.26) return 'bg-red-100 text-red-700'
+    if (mastery < 0.51) return 'bg-amber-100 text-amber-700'
+    if (mastery < 0.76) return 'bg-sky-100 text-sky-700'
+    return 'bg-green-100 text-green-700'
+  }
+
+  export function getReviewDueLabel(nextReviewDate: string): string {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const due = new Date(nextReviewDate)
+    due.setHours(0, 0, 0, 0)
+    const diff = Math.floor((due.getTime() - today.getTime()) / 86400000)
+    if (diff < 0) return `Overdue by ${Math.abs(diff)} day${Math.abs(diff) > 1 ? 's' : ''}`
+    if (diff === 0) return 'Review due today'
+    if (diff <= 3) return `Review in ${diff} day${diff > 1 ? 's' : ''}`
+    return `Review on ${due.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}`
+  }
+
+  export function getReviewDueColorClass(nextReviewDate: string): string {
+    const label = getReviewDueLabel(nextReviewDate)
+    if (label.startsWith('Overdue')) return 'bg-red-100 text-red-700'
+    if (label.includes('today'))  return 'bg-red-100 text-red-700'
+    if (label.includes('in 1') || label.includes('in 2') || label.includes('in 3'))
+      return 'bg-amber-100 text-amber-700'
+    return 'bg-gray-100 text-gray-500'
+  }
+
+FILE: src/types/planner.types.ts                                       [NEW]
+
+  export interface PlannedSession {
+    type: 'review' | 'new' | 'practice'
+    topicId: string
+    topicName: string
+    subjectId: string
+    subjectName: string
+    durationMins: number
+    reason: string
+    isCompleted?: boolean  // client-side only
+  }
+
+  export interface DailyPlan {
+    planDate: string          // YYYY-MM-DD
+    totalMinutes: number
+    sessions: PlannedSession[]
+    motivationMessage: string
+    generatedAt: string
+  }
+
+FILE: src/types/knowledge.types.ts                                     [NEW]
+
+  export interface ConceptNode {
+    id: string
+    topicId: string
+    topicName: string
+    concept: string
+    mastery: number           // 0.0–1.0
+    masteryLabel: string      // 'Learning' | 'Developing' | 'Proficient' | 'Mastered'
+  }
+
+  export interface KnowledgeGraphResponse {
+    totalConcepts: number
+    nodes: ConceptNode[]
+    groupedByTopic: {
+      topicId: string
+      topicName: string
+      avgMastery: number
+      conceptCount: number
+    }[]
+  }
+
+================================================================================
+SECTION 21: FORBIDDEN PATTERNS (COMPLETE LIST)
+================================================================================
+(All v1.0 UX, code, and architecture forbidden patterns unchanged.)
+
+NEW IN v2.0:                                                           [NEW]
+
+UX FORBIDDEN:
+  [ ] NEVER hide the DemoBanner when VITE_DEMO_MODE=true — it must always
+      be visible so judges understand they are in a demo
+  [ ] NEVER auto-play TTS audio on page load — only after user enables it
+  [ ] NEVER start the webcam without explicit user consent via the modal
+  [ ] NEVER show a blank KnowledgeGraph page — always show empty state
+  [ ] NEVER redirect to /login when VITE_DEMO_MODE=true (PrivateRoute handles)
+
+CODE FORBIDDEN:
+  [ ] NEVER check VITE_DEMO_MODE directly in component files — always use
+      useDemoMode() hook for consistency
+  [ ] NEVER store webcam video data in any state or send it to the backend
+      Only aggregate event counts (gaze_away: N) are ever sent
+  [ ] NEVER use @mediapipe/face_mesh outside GazeProctor.tsx
+  [ ] NEVER block test navigation while FaceMesh loads — it must be async
+  [ ] NEVER import all of recharts if only using BarChart — named imports only
+
+DEMO FORBIDDEN:
+  [ ] NEVER commit VITE_DEMO_MODE=true to production deployment config
+  [ ] NEVER set VITE_DEMO_MODE=true in the Vercel production environment
+  [ ] NEVER show the DemoBanner on the landing page (/), login (/login),
+      or signup (/signup) — only inside authenticated pages (AppShell)
+
+================================================================================
+SECTION 22: ENVIRONMENT SETUP FOR HACKATHON DEMO
+================================================================================
+[NEW SECTION]
+
+FILE: .env.development (local dev — demo mode ON)
+  VITE_API_BASE_URL=http://localhost:8080
+  VITE_DEMO_MODE=true
+
+FILE: .env.production (Vercel — demo mode OFF for production)
+  VITE_API_BASE_URL=https://your-backend.railway.app
+  VITE_DEMO_MODE=false
+
+FILE: .env.demo (dedicated demo build — use for hackathon laptop)
+  VITE_API_BASE_URL=http://localhost:8080
+  VITE_DEMO_MODE=true
+
+HACKATHON STARTUP COMMANDS:
+  # Terminal 1: Backend (from backend directory)
+  DEMO_MODE=true GEMINI_API_KEY=your_key ./mvnw spring-boot:run -Dspring-boot.run.profiles=demo
+
+  # Terminal 2: Frontend (from frontend directory)
+  cp .env.demo .env.local
+  npm run dev
+
+  # The app will be available at http://localhost:5173
+  # No login required. Arjun Sharma's data is pre-seeded.
+
+VERCEL DEPLOYMENT (for remote demo):
+  In Vercel dashboard → Project → Settings → Environment Variables:
+    VITE_API_BASE_URL = https://your-backend.railway.app
+    VITE_DEMO_MODE = true   ← set true only for hackathon period
+
+================================================================================
+END OF DOCUMENT
+================================================================================
+PrepCreatine FDD v2.0 | DevClash2026 Hackathon Edition
+Total pages: 20 (+2 from v1.0: /planner, /knowledge)
+Total new components: 8 (DemoBanner, ReviewDueWidget, TodayPlanPreview,
+                         VoiceInput, GroundedInBadge, SM2NextReviewChip,
+                         GazeProctor, KnowledgeGraph)
+Total new hooks: 5 (useDemoMode, useReviewDue, useDailyPlan,
+                    useKnowledgeGraph, useVoiceInput)
+Total new API hooks: 4 (usePlanner, useCompleteSession, useKnowledgeGraph,
+                        useImportYouTube)
+Total new routes: 2 (/planner, /knowledge)
+Stack: React 18 + Vite + TypeScript + Tailwind + TanStack Query + Zustand
+
+DEMO MODE SUMMARY (frontend side):
+  Activation:     VITE_DEMO_MODE=true in .env.local
+  Auth bypass:    PrivateRoute allows all routes. authStore pre-populates Arjun.
+  401 handling:   Suppressed (toast instead of redirect)
+  Demo banner:    Fixed bottom strip with "Reset demo" button
+  No code change: All features work identically — demo mode is an env flag
+
+NEW FEATURES SUMMARY (DevClash2026 modules):
+  Module 1: ReviewDueWidget, SM2NextReviewChip, /syllabus review-due filter
+  Module 2: /planner, TodayPlanPreview on home, session-complete tracking
+  Module 3: Per-question timer in ExamSession, targeted drill CTA in results
+  Module 4: GroundedInBadge in chat, VoiceInput (Hindi/Hinglish + TTS)
+  Module 5: YouTube tab in Notes import, thumbnail in source cards/viewer
+  Bonus:    GazeProctor with MediaPipe FaceMesh, proctoring summary in results
+
+"Brought to you by Rudra Agrawal"
+================================================================================

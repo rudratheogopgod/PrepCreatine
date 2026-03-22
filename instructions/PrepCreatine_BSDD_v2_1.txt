@@ -1,0 +1,1471 @@
+================================================================================
+PREPCREATINE — BACKEND SYSTEM DESIGN DOCUMENT (BSDD)
+Version 2.1 | DevClash2026 Hackathon Edition — DEMO MODE
+Prepared for AI-assisted backend development
+================================================================================
+Project name:  PrepCreatine
+Tagline:       "Creatine for your exam prep"
+Author credit: "Brought to you by Rudra Agrawal"
+Version:       2.1
+Date:          March 2026
+Status:        HACKATHON DEMO BUILD — Demo Mode Active
+
+WHAT IS NEW IN v2.1 (vs v2.0):
+  NEW  DEMO MODE — entire auth layer bypassed for hackathon presentation
+  NEW  DemoUserFilter — injects demo user into every request automatically
+  NEW  DemoUserSeeder — creates and seeds the demo user on startup
+  NEW  DemoModeConfig — single flag controls entire demo mode behaviour
+  NEW  application-demo.properties — demo profile config
+  MOD  SecurityConfig — all endpoints permit-all in demo mode
+  MOD  JwtAuthenticationFilter — skipped entirely in demo mode
+  MOD  All controllers — still have auth/signup/login logic but NOT enforced
+
+DEMO MODE PHILOSOPHY:
+  The login/signup pages still exist and their code still works. Nothing is
+  deleted. The demo mode works by automatically injecting the demo user's
+  identity into every single request before it reaches any controller — so
+  every endpoint behaves as if the judge is already logged in as "Arjun Sharma"
+  (a pre-seeded JEE student). Judges can click through any feature without
+  ever being redirected to a login screen. The codebase remains production-ready
+  — disabling demo mode (one env var change) restores all auth enforcement.
+
+================================================================================
+DEMO MODE — WHAT IT DOES (READ THIS FIRST)
+================================================================================
+
+When DEMO_MODE=true (set in environment):
+
+  1. EVERY HTTP request to /api/** is automatically enriched with the demo
+     user's identity. No cookie, no JWT, no login required.
+
+  2. The demo user "Arjun Sharma" is pre-seeded in the database with:
+     - Full JEE (Main + Advanced) student profile
+     - 45 syllabus topics already marked as 'done' across Physics/Chemistry/Math
+     - 12 syllabus topics with next_review_date = TODAY (so review queue is live)
+     - 8 completed test sessions with realistic scores (55–82%)
+     - 3 test sessions with wrong answers → targeted drills pre-generated
+     - 14-day study streak in sessions table
+     - 2 uploaded sources (one PDF summary, one URL)
+     - 6 concept graph nodes with varying mastery levels
+     - 1 community thread with 2 answers
+     - A mentor linked (mentor code: DEMO-MENTOR)
+     - A daily plan pre-generated for today
+     - Readiness score pre-computed at 61
+
+  3. GET /api/auth/me always returns the demo user (no JWT check).
+
+  4. All features work exactly as described in v2.0 — spaced repetition,
+     daily planner, RAG chat, YouTube video processing, adaptive quizzes,
+     knowledge graph, proctoring — all function normally. Demo mode only
+     bypasses the authentication gate. All business logic is real.
+
+  5. POST /api/auth/login and POST /api/auth/signup still work: they just
+     quietly log in as / return the demo user without touching the DB and
+     set a fake cookie value. This means the login/signup pages don't break.
+
+  6. The frontend needs ZERO changes. The demo user's data is already in the
+     DB. The frontend calls the same endpoints and gets real data back.
+
+DEMO USER PROFILE — "Arjun Sharma":
+  userId:       00000000-0000-0000-0000-000000000001  (fixed UUID)
+  email:        arjun@prepcreatine.demo
+  fullName:     Arjun Sharma
+  role:         STUDENT
+  examType:     jee
+  examDate:     60 days from the application startup date
+                (computed dynamically so it always looks realistic)
+  dailyGoalMins: 120
+  weakTopics:   ["jee-physics-thermodynamics", "jee-chemistry-organic-goc",
+                 "jee-math-integration", "jee-physics-optics"]
+  strongTopics: ["jee-physics-kinematics", "jee-math-coordinates"]
+  studyMode:    in_depth
+  theme:        system
+
+================================================================================
+SECTION 0: HOW TO READ THIS DOCUMENT
+================================================================================
+This document is the single source of truth for the PrepCreatine backend.
+It covers every service, every repository, every controller, every entity,
+every configuration file, every integration, and every design decision.
+Read it fully before writing any code. Do not hallucinate endpoints, fields,
+or behaviors not described here. Do not invent tables, columns, or services.
+When something is ambiguous, default to the simpler, safer implementation.
+
+NOTATION USED THROUGHOUT THIS DOCUMENT:
+  [REQUIRED]   — must be implemented exactly as described
+  [FORBIDDEN]  — never do this under any circumstances
+  [NOTE]       — important context, reasoning, or constraint
+  [PERF]       — performance-critical implementation detail
+  [SECURITY]   — security-critical — treat with extra care
+  [LOG]        — add a structured log entry here
+  [TEST]       — write a unit or integration test for this
+  [TODO]       — implement in production phase, skip for hackathon MVP
+  [ASYNC]      — must be non-blocking, use @Async or reactive
+  [NEW]        — added in v2.1 (demo mode additions)
+  [MOD]        — modified from v2.0
+  [DEMO]       — demo-mode-specific behaviour
+
+HTTP STATUS CODE CONVENTIONS: (unchanged from v2.0)
+ERROR RESPONSE FORMAT: (unchanged from v2.0)
+SUCCESS RESPONSE FORMAT: (unchanged from v2.0)
+
+================================================================================
+SECTION 1: TECH STACK
+================================================================================
+(All v2.0 tech stack unchanged. Single addition:)
+
+DEMO MODE FLAG:
+  Controlled by environment variable: DEMO_MODE=true
+  Read via @Value("${app.demo-mode:false}") Boolean demoMode
+  in DemoModeConfig.java — injected wherever needed.
+  Default: false (production safe — demo mode must be explicitly enabled)
+
+================================================================================
+SECTION 2: MAVEN pom.xml
+================================================================================
+(Identical to v2.0. No new dependencies required for demo mode.)
+
+================================================================================
+SECTION 3: PROJECT STRUCTURE
+================================================================================
+
+All v2.0 files remain. New files added for demo mode:
+
+src/main/java/com/prepcreatine/
+│
+├── config/
+│   ├── DemoModeConfig.java          ← [NEW] @Configuration, holds demoMode flag
+│   └── ... (all v2.0 config files unchanged)
+│
+├── demo/                            ← [NEW] entire package for demo mode
+│   ├── DemoUserFilter.java          ← [NEW] injects demo user into every request
+│   ├── DemoUserSeeder.java          ← [NEW] seeds all demo data on startup
+│   └── DemoAuthController.java      ← [NEW] overrides login/signup in demo mode
+│
+└── ... (all v2.0 packages unchanged)
+
+src/main/resources/
+├── application-demo.properties      ← [NEW] demo profile config
+└── ... (all v2.0 resources unchanged)
+
+================================================================================
+SECTION 4: DATABASE SCHEMA
+================================================================================
+(All v2.0 tables unchanged. Demo mode uses the same schema — the demo user
+is just a regular DB row with a fixed UUID.)
+
+NEW: DEMO DATA SEED (executed by DemoUserSeeder on startup in demo mode)
+
+The demo user row in every relevant table uses this fixed UUID as user_id:
+  DEMO_USER_ID = '00000000-0000-0000-0000-000000000001'
+
+All seeded data is idempotent — DemoUserSeeder uses INSERT ... ON CONFLICT DO
+NOTHING for every row. Running it multiple times is safe.
+
+================================================================================
+SECTION 5: SECURITY CONFIGURATION — DEMO MODE
+================================================================================
+
+--- DemoModeConfig.java --- [NEW]
+
+  @Configuration
+  public class DemoModeConfig {
+
+    @Value("${app.demo-mode:false}")
+    private boolean demoMode;
+
+    public boolean isDemoMode() { return demoMode; }
+
+    // Fixed demo user UUID — used everywhere
+    public static final UUID DEMO_USER_ID =
+      UUID.fromString("00000000-0000-0000-0000-000000000001");
+
+    // Fixed demo conversation UUID for initial chat
+    public static final UUID DEMO_CONVERSATION_ID =
+      UUID.fromString("00000000-0000-0000-0000-000000000002");
+  }
+
+--- SecurityConfig.java --- [MOD]
+
+  In the filterChain() method, add a demo mode branch:
+
+  if (demoModeConfig.isDemoMode()) {
+    http
+      .csrf(csrf -> csrf.disable())
+      .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+      .authorizeHttpRequests(auth -> auth
+        .anyRequest().permitAll()   // ALL requests permitted in demo mode
+      )
+      .sessionManagement(session -> session
+        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+      );
+    // DO NOT add JwtAuthenticationFilter in demo mode
+    // DemoUserFilter handles identity injection instead
+    http.addFilterBefore(demoUserFilter, UsernamePasswordAuthenticationFilter.class);
+    return http.build();
+  }
+
+  // Normal production security (when DEMO_MODE=false):
+  http
+    .csrf(csrf -> csrf.disable())
+    .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+    .authorizeHttpRequests(auth -> auth
+      .requestMatchers("/api/auth/**", "/api/progress/**",
+                       "/actuator/health").permitAll()
+      .requestMatchers("/api/mentor/**").hasRole("MENTOR")
+      .anyRequest().authenticated()
+    )
+    .sessionManagement(session -> session
+      .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+    )
+    .addFilterBefore(jwtAuthenticationFilter,
+                     UsernamePasswordAuthenticationFilter.class)
+    .addFilterBefore(rateLimitFilter, JwtAuthenticationFilter.class);
+
+  return http.build();
+
+--- DemoUserFilter.java --- [NEW]
+
+  @Component
+  @ConditionalOnProperty(name = "app.demo-mode", havingValue = "true")
+  public class DemoUserFilter extends OncePerRequestFilter {
+
+    private final DemoModeConfig demoModeConfig;
+    private final UserRepository userRepository;
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request,
+                                    HttpServletResponse response,
+                                    FilterChain filterChain)
+        throws ServletException, IOException {
+
+      // Load demo user details
+      User demoUser = userRepository.findById(DemoModeConfig.DEMO_USER_ID)
+          .orElseThrow(() -> new IllegalStateException(
+              "Demo user not found. Check DemoUserSeeder ran successfully."));
+
+      PrepCreatineUserDetails userDetails =
+          new PrepCreatineUserDetails(demoUser);
+
+      UsernamePasswordAuthenticationToken auth =
+          new UsernamePasswordAuthenticationToken(
+              userDetails, null, userDetails.getAuthorities());
+
+      auth.setDetails(new WebAuthenticationDetailsSource()
+          .buildDetails(request));
+
+      // Set demo user as the authenticated principal for this request
+      SecurityContextHolder.getContext().setAuthentication(auth);
+
+      // Add userId to MDC for logging
+      MDC.put("userId", DemoModeConfig.DEMO_USER_ID.toString());
+      MDC.put("demoMode", "true");
+
+      try {
+        filterChain.doFilter(request, response);
+      } finally {
+        MDC.remove("userId");
+        MDC.remove("demoMode");
+        SecurityContextHolder.clearContext();
+      }
+    }
+  }
+
+  [NOTE] This filter is only registered when app.demo-mode=true.
+  @ConditionalOnProperty ensures it is completely absent from the Spring
+  context in production (DEMO_MODE=false or not set).
+
+--- DemoAuthController.java --- [NEW]
+
+  @RestController
+  @RequestMapping("/api/auth")
+  @ConditionalOnProperty(name = "app.demo-mode", havingValue = "true")
+  public class DemoAuthController {
+
+    // This controller takes priority over AuthController in demo mode.
+    // It overrides login and signup to return demo user data instantly.
+
+    @PostMapping("/login")
+    public ResponseEntity<AuthResponse> login(@RequestBody LoginRequest req) {
+      // Ignore credentials entirely. Return demo user as if login succeeded.
+      return ResponseEntity.ok(buildDemoAuthResponse());
+    }
+
+    @PostMapping("/signup")
+    public ResponseEntity<AuthResponse> signup(@RequestBody SignupRequest req) {
+      // Ignore all fields. Return demo user as if signup succeeded.
+      return ResponseEntity.status(201).body(buildDemoAuthResponse());
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<AuthResponse> me() {
+      return ResponseEntity.ok(buildDemoAuthResponse());
+    }
+
+    @PostMapping("/logout")
+    public ResponseEntity<Void> logout(HttpServletResponse response) {
+      // Clear cookie if set, return 204
+      Cookie cookie = new Cookie("prepcreatine_token", "");
+      cookie.setMaxAge(0);
+      cookie.setPath("/");
+      response.addCookie(cookie);
+      return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/forgot-password")
+    public ResponseEntity<Map<String, String>> forgotPassword() {
+      return ResponseEntity.ok(Map.of("message",
+          "If that email has an account, we've sent a reset link. " +
+          "Check your inbox."));
+    }
+
+    @PostMapping("/verify-email")
+    public ResponseEntity<AuthResponse> verifyEmail() {
+      return ResponseEntity.ok(buildDemoAuthResponse());
+    }
+
+    private AuthResponse buildDemoAuthResponse() {
+      return new AuthResponse(
+          DemoModeConfig.DEMO_USER_ID,
+          "arjun@prepcreatine.demo",
+          "Arjun Sharma",
+          "STUDENT",
+          true,        // onboardingComplete
+          "jee",       // examType
+          true         // isEmailVerified
+      );
+    }
+  }
+
+  [NOTE] In production (DEMO_MODE=false), this class does not exist in the
+  Spring context. The real AuthController handles all /api/auth/** requests.
+  There is no conflict because @ConditionalOnProperty excludes this class.
+
+================================================================================
+SECTION 5A: DEMO USER SEEDER
+================================================================================
+
+--- DemoUserSeeder.java --- [NEW]
+
+  @Component
+  @ConditionalOnProperty(name = "app.demo-mode", havingValue = "true")
+  public class DemoUserSeeder {
+
+    @EventListener(ApplicationReadyEvent.class)
+    @Async
+    public void seedDemoData() {
+      log.info("[DemoUserSeeder] Starting demo data seed...");
+      try {
+        seedUser();
+        seedUserContext();
+        seedSyllabusProgress();
+        seedSessions();
+        seedConversations();
+        seedSources();
+        seedTestSessions();
+        seedTestAnswers();
+        seedConceptGraphNodes();
+        seedCommunityData();
+        seedMentorData();
+        seedDailyPlan();
+        seedNotifications();
+        log.info("[DemoUserSeeder] Demo data seed complete.");
+      } catch (Exception e) {
+        log.error("[DemoUserSeeder] Seed failed: {}", e.getMessage(), e);
+        throw new RuntimeException("Demo user seed failed — cannot run demo", e);
+      }
+    }
+
+    All seed methods use INSERT ... ON CONFLICT DO NOTHING or
+    INSERT ... ON CONFLICT DO UPDATE SET ... to be idempotent.
+
+    ============================================================
+    seedUser():
+    ============================================================
+    INSERT INTO users (id, email, password_hash, full_name, role,
+      is_email_verified, onboarding_complete, share_token)
+    VALUES (
+      '00000000-0000-0000-0000-000000000001',
+      'arjun@prepcreatine.demo',
+      '$2a$12$demoHashNotRealDoNotUseThisInProduction1234567890abc',
+      'Arjun Sharma',
+      'STUDENT',
+      true,
+      true,
+      'demo-share-token-arjun-2026'
+    ) ON CONFLICT (id) DO NOTHING;
+
+    ============================================================
+    seedUserContext():
+    ============================================================
+    INSERT INTO user_contexts (id, user_id, exam_type, exam_date,
+      study_mode, daily_goal_mins, weak_topics, strong_topics, theme)
+    VALUES (
+      '00000000-0000-0000-0000-000000000010',
+      '00000000-0000-0000-0000-000000000001',
+      'jee',
+      CURRENT_DATE + INTERVAL '60 days',   -- always 60 days from now
+      'in_depth',
+      120,
+      ARRAY[
+        'jee-physics-thermodynamics',
+        'jee-chemistry-organic-goc',
+        'jee-math-integration',
+        'jee-physics-optics'
+      ],
+      ARRAY[
+        'jee-physics-kinematics',
+        'jee-math-coordinates'
+      ],
+      'system'
+    ) ON CONFLICT (user_id) DO UPDATE SET
+      exam_date = CURRENT_DATE + INTERVAL '60 days';
+
+    ============================================================
+    seedSyllabusProgress():
+    ============================================================
+    Seed 60 topic progress rows total:
+
+    45 topics with status='done' — spread across:
+      Physics (15 done):
+        jee-physics-kinematics              done, easiness=2.8, rep=5,
+                                            interval=24, next_review=+24 days
+        jee-physics-laws-of-motion          done, easiness=2.6, rep=4,
+                                            interval=14, next_review=+7 days
+        jee-physics-work-energy             done, easiness=2.5, rep=3,
+                                            interval=8, next_review=TODAY
+        jee-physics-circular-motion         done, easiness=2.4, rep=2,
+                                            interval=6, next_review=TODAY
+        jee-physics-gravitation             done, easiness=2.3, rep=1,
+                                            interval=1, next_review=YESTERDAY
+        jee-physics-electrostatics          done, easiness=2.5, rep=3,
+                                            interval=10, next_review=+3 days
+        jee-physics-current-electricity     done, easiness=2.2, rep=2,
+                                            interval=6, next_review=TODAY
+        jee-physics-magnetic-effects        done, easiness=2.4, rep=2,
+                                            interval=6, next_review=+5 days
+        jee-physics-emi                     done, easiness=2.1, rep=1,
+                                            interval=1, next_review=YESTERDAY
+        jee-physics-waves                   done, easiness=2.6, rep=4,
+                                            interval=15, next_review=+10 days
+        jee-physics-units-dimensions        done, easiness=2.8, rep=5,
+                                            interval=22, next_review=+18 days
+        jee-physics-rotational-motion       done, easiness=2.3, rep=2,
+                                            interval=6, next_review=+2 days
+        jee-physics-fluid-mechanics         done, easiness=2.2, rep=1,
+                                            interval=1, next_review=YESTERDAY
+        jee-physics-simple-harmonic-motion  done, easiness=2.5, rep=3,
+                                            interval=9, next_review=+6 days
+        jee-physics-nuclear-physics         done, easiness=2.0, rep=1,
+                                            interval=1, next_review=YESTERDAY
+
+      Chemistry (15 done):
+        jee-chemistry-mole-concept          done, rep=5, next_review=+20 days
+        jee-chemistry-atomic-structure      done, rep=4, next_review=+12 days
+        jee-chemistry-periodic-table        done, rep=4, next_review=+11 days
+        jee-chemistry-chemical-bonding      done, rep=3, next_review=TODAY
+        jee-chemistry-states-of-matter      done, rep=3, next_review=+4 days
+        jee-chemistry-thermodynamics        done, rep=2, next_review=+2 days
+        jee-chemistry-equilibrium           done, rep=2, next_review=TODAY
+        jee-chemistry-redox-reactions       done, rep=3, next_review=+7 days
+        jee-chemistry-solutions             done, rep=2, next_review=+3 days
+        jee-chemistry-electrochemistry      done, rep=1, next_review=YESTERDAY
+        jee-chemistry-solid-state           done, rep=2, next_review=+1 day
+        jee-chemistry-surface-chemistry     done, rep=2, next_review=+5 days
+        jee-chemistry-coordination          done, rep=1, next_review=YESTERDAY
+        jee-chemistry-halogen-derivatives   done, rep=1, next_review=TODAY
+        jee-chemistry-alcohol-phenol        done, rep=1, next_review=+1 day
+
+      Mathematics (15 done):
+        jee-math-sets-functions             done, rep=5, next_review=+25 days
+        jee-math-relations                  done, rep=4, next_review=+13 days
+        jee-math-trigonometry               done, rep=4, next_review=+10 days
+        jee-math-complex-numbers            done, rep=3, next_review=+8 days
+        jee-math-quadratic-equations        done, rep=3, next_review=+5 days
+        jee-math-sequences-series           done, rep=3, next_review=TODAY
+        jee-math-permutations               done, rep=2, next_review=+3 days
+        jee-math-binomial-theorem           done, rep=2, next_review=TODAY
+        jee-math-coordinates                done, rep=5, next_review=+28 days
+        jee-math-straight-lines             done, rep=4, next_review=+14 days
+        jee-math-circles                    done, rep=3, next_review=+9 days
+        jee-math-parabola                   done, rep=2, next_review=YESTERDAY
+        jee-math-limits-continuity          done, rep=3, next_review=+6 days
+        jee-math-differentiation            done, rep=2, next_review=+4 days
+        jee-math-applications-derivatives   done, rep=2, next_review=+2 days
+
+    10 topics with status='in_progress':
+        jee-physics-thermodynamics          in_progress, time_spent=85
+        jee-physics-optics                  in_progress, time_spent=45
+        jee-chemistry-organic-goc           in_progress, time_spent=120
+        jee-chemistry-aldehydes-ketones     in_progress, time_spent=30
+        jee-chemistry-carboxylic-acids      in_progress, time_spent=20
+        jee-math-integration                in_progress, time_spent=95
+        jee-math-differential-equations     in_progress, time_spent=40
+        jee-math-vectors                    in_progress, time_spent=55
+        jee-math-3d-geometry                in_progress, time_spent=25
+        jee-math-probability                in_progress, time_spent=35
+
+    5 topics with status='not_started' (left for demo to mark as done):
+        jee-physics-semiconductors          not_started
+        jee-physics-communication           not_started
+        jee-chemistry-polymers              not_started
+        jee-chemistry-biomolecules          not_started
+        jee-math-statistics                 not_started
+
+    [NOTE] Topics where next_review_date is YESTERDAY or TODAY (6 topics total)
+    are the ones that will appear in the "Review Due Today" widget.
+    Make sure these 6 are distributed across subjects for a good demo.
+
+    ============================================================
+    seedSessions():
+    ============================================================
+    Seed 20 study session rows (one per day, last 20 days):
+
+    The last 14 days must have sessions (current streak = 14 days).
+    Days 15-20 can have gaps to show the streak ending there.
+
+    Each session row:
+      user_id = DEMO_USER_ID
+      date = CURRENT_DATE - N days
+      duration_mins = random-looking but realistic (45–180)
+      mode_used = rotating: 'in_depth', 'revision', 'speed_run'
+      topics_touched = 2-4 topic IDs from the done list
+
+    Specific values (use these exact minutes for realism):
+      today-0:  150 mins, in_depth,  [kinematics, laws-of-motion]
+      today-1:  120 mins, revision,  [work-energy, gravitation]
+      today-2:   90 mins, in_depth,  [chemical-bonding, equilibrium]
+      today-3:  180 mins, in_depth,  [mole-concept, atomic-structure]
+      today-4:   75 mins, speed_run, [sets-functions, trigonometry]
+      today-5:  130 mins, in_depth,  [complex-numbers, sequences]
+      today-6:   60 mins, revision,  [circular-motion, fluid-mechanics]
+      today-7:  110 mins, in_depth,  [electrostatics, current-electricity]
+      today-8:   95 mins, revision,  [solid-state, solutions]
+      today-9:  145 mins, in_depth,  [coordinates, straight-lines]
+      today-10:  80 mins, speed_run, [limits-continuity, differentiation]
+      today-11: 160 mins, in_depth,  [redox, electrochemistry]
+      today-12:  70 mins, revision,  [parabola, circles]
+      today-13: 100 mins, in_depth,  [rotational-motion, shm]
+      today-14:  55 mins, revision,  [periodic-table, bonding]   ← streak ends here
+      today-16:  45 mins, in_depth,  [units-dimensions]          ← gap day 15
+      today-18:  90 mins, in_depth,  [waves, nuclear-physics]    ← gaps 17, 19
+      today-20:  60 mins, speed_run, [quadratic-equations]       ← gap day 20-21
+
+    ============================================================
+    seedConversations():
+    ============================================================
+    Seed 3 conversations with messages:
+
+    CONVERSATION 1: "Thermodynamics doubt"
+      id: '00000000-0000-0000-0000-000000000002'
+      title: "Thermodynamics doubt"
+      exam_id: jee
+
+      Messages:
+        role=user: "I don't understand the second law of thermodynamics.
+          How does entropy always increase?"
+        role=assistant: "Great question! The second law tells us that in any
+          spontaneous process, the total entropy of the universe always
+          increases or stays the same — it never decreases spontaneously.
+          Think of it this way: if you drop an ice cube in warm water, heat
+          flows from warm to cold. This is spontaneous. The reverse — heat
+          flowing from cold to warm on its own — never happens, because it
+          would decrease entropy. [followed by full explanation...]"
+          concept_map: { nodes: [
+            {id:"1", label:"Entropy", type:"concept"},
+            {id:"2", label:"Second Law", type:"concept"},
+            {id:"3", label:"Spontaneous Process", type:"concept"},
+            {id:"4", label:"ΔS_universe ≥ 0", type:"formula"},
+            {id:"5", label:"Heat Engine", type:"example"}
+          ], edges: [
+            {source:"2", target:"1", label:"defines"},
+            {source:"3", target:"1", label:"increases"},
+            {source:"2", target:"4", label:"states"},
+            {source:"5", target:"2", label:"obeys"}
+          ]}
+
+    CONVERSATION 2: "Integration by parts"
+      id: '00000000-0000-0000-0000-000000000003'
+      Messages:
+        user: "Explain integration by parts with a JEE example"
+        assistant: Full explanation with formula ∫u dv = uv - ∫v du,
+          step-by-step example with ∫x·sin(x)dx, concept map with nodes
+          for the formula, LIATE rule, and practice question
+
+    CONVERSATION 3: "Organic chemistry GOC"
+      id: '00000000-0000-0000-0000-000000000004'
+      Messages:
+        user: "What are inductive and mesomeric effects?"
+        assistant: Full explanation with +I/-I effects, +M/-M effects,
+          examples with electron-donating and withdrawing groups,
+          concept map with 6 nodes
+
+    ============================================================
+    seedSources():
+    ============================================================
+    Seed 2 sources (status='ready') with chunks:
+
+    SOURCE 1: "My Thermodynamics Notes" (type=text)
+      id: '00000000-0000-0000-0000-000000000020'
+      user_id: DEMO_USER_ID
+      status: ready
+      raw_text: """
+        Thermodynamics — Personal Notes
+        First Law: Energy cannot be created or destroyed. ΔU = Q - W.
+        Q is heat added to system, W is work done by system.
+        Internal energy U is a state function. Path functions: Q and W.
+        Isothermal process: temperature constant, ΔU = 0 for ideal gas.
+        Adiabatic process: no heat exchange, Q = 0. ΔU = -W.
+        Second Law: Entropy of universe always increases.
+        Entropy S: dS = dQ_rev/T. For irreversible process: ΔS_universe > 0.
+        Third Law: Entropy of perfect crystal at 0K is zero.
+        Gibbs free energy: G = H - TS. Spontaneous if ΔG < 0.
+        Hess's Law: Enthalpy change same regardless of path.
+        Kirchhoff's equation: Cp - Cv = R for ideal gases.
+      """
+      study_guide: {
+        summary: "Covers laws of thermodynamics, state functions, entropy,
+          and Gibbs free energy with key formulae for JEE preparation.",
+        topics: ["First Law", "Second Law", "Entropy", "Gibbs Energy",
+                 "Hess's Law"],
+        formulas: ["ΔU = Q - W", "ΔS = dQ_rev/T", "G = H - TS",
+                   "Cp - Cv = R"],
+        examQuestions: [
+          "For an isothermal reversible expansion of ideal gas, what is ΔU?",
+          "State the second law of thermodynamics.",
+          "What is the sign of ΔG for a spontaneous process?",
+          "Calculate entropy change if 1000J heat is absorbed at 300K.",
+          "Explain Hess's law with an example."
+        ]
+      }
+      Seed 3 source_chunks with realistic embeddings (use zero vectors
+      for demo — the seeder should store vector(768) of all zeros as a
+      placeholder since real embeddings require API calls):
+        chunk_0: "Thermodynamics First Law ... ΔU = Q - W ..."
+        chunk_1: "Second Law ... entropy ... dS = dQ_rev/T ..."
+        chunk_2: "Gibbs free energy ... G = H - TS ... spontaneous ..."
+
+    SOURCE 2: "JEE Integration Techniques" (type=url)
+      id: '00000000-0000-0000-0000-000000000021'
+      status: ready
+      original_url: "https://ncert.nic.in/textbook.php?lemh1=7-13"
+      raw_text: """
+        Integration — Standard Methods
+        Integration by substitution: if I = ∫f(g(x))g'(x)dx, let u=g(x).
+        Integration by parts: ∫u dv = uv - ∫v du. Use LIATE rule.
+        L=Logarithmic, I=Inverse trig, A=Algebraic, T=Trig, E=Exponential.
+        Standard forms: ∫sin(x)dx = -cos(x)+C, ∫cos(x)dx = sin(x)+C.
+        ∫x^n dx = x^(n+1)/(n+1) + C for n ≠ -1.
+        ∫e^x dx = e^x + C. ∫1/x dx = ln|x| + C.
+        Definite integrals: ∫_a^b f(x)dx = F(b) - F(a).
+        Properties: ∫_a^b f(x)dx = -∫_b^a f(x)dx.
+        Area under curve: A = ∫_a^b |f(x)| dx.
+      """
+      study_guide: similar structure to SOURCE 1
+      Seed 2 source_chunks with zero-vector embeddings
+
+    ============================================================
+    seedTestSessions():
+    ============================================================
+    Seed 8 completed test sessions:
+
+    SESSION 1: Full mock (submitted, score=62.2%)
+      id: '00000000-0000-0000-0000-000000000030'
+      test_type: full_mock, exam_id: jee, level: 2
+      question_count: 90, score: 62.22, correct_count: 56
+      time_taken_secs: 9240 (154 min), submitted_at: today - 7 days
+
+    SESSION 2: Topic-wise Physics (submitted, score=75.0%)
+      id: '00000000-0000-0000-0000-000000000031'
+      test_type: topic_wise, subject_id: physics, level: 2
+      question_count: 20, score: 75.0, correct_count: 15
+      submitted_at: today - 5 days
+
+    SESSION 3: Topic-wise Chemistry — Organic (submitted, score=45.0%)
+      id: '00000000-0000-0000-0000-000000000032'
+      test_type: topic_wise, subject_id: chemistry
+      topic_id: jee-chemistry-organic-goc, level: 2
+      question_count: 20, score: 45.0, correct_count: 9
+      submitted_at: today - 4 days
+      [NOTE] Low score → targeted drill should exist for this topic
+
+    SESSION 4: Rapid fire (submitted, score=80.0%)
+      id: '00000000-0000-0000-0000-000000000033'
+      test_type: rapid_fire, subject_id: mathematics, level: 1
+      question_count: 10, score: 80.0, correct_count: 8
+      submitted_at: today - 3 days
+
+    SESSION 5: Topic-wise Math Integration (submitted, score=40.0%)
+      id: '00000000-0000-0000-0000-000000000034'
+      test_type: topic_wise, subject_id: mathematics
+      topic_id: jee-math-integration, level: 2
+      question_count: 20, score: 40.0, correct_count: 8
+      submitted_at: today - 2 days
+      [NOTE] Low score → targeted drill should exist
+
+    SESSION 6: Full mock 2 (submitted, score=68.9%)
+      id: '00000000-0000-0000-0000-000000000035'
+      test_type: full_mock, level: 2
+      question_count: 90, score: 68.89, correct_count: 62
+      submitted_at: today - 1 day
+
+    SESSION 7: Targeted practice — Organic GOC (status='ready', NOT submitted)
+      id: '00000000-0000-0000-0000-000000000036'
+      test_type: targeted_practice
+      topic_id: jee-chemistry-organic-goc, level: 2
+      question_count: 3, status: in_progress
+      [NOTE] This is the pre-generated drill from Session 3's poor score.
+      It should be 'in_progress' so the judge can take it live in the demo.
+
+    SESSION 8: Targeted practice — Integration (status='in_progress')
+      id: '00000000-0000-0000-0000-000000000037'
+      test_type: targeted_practice
+      topic_id: jee-math-integration, level: 2
+      question_count: 3, status: in_progress
+
+    ============================================================
+    seedTestAnswers():
+    ============================================================
+    For completed sessions (1-6): seed realistic test_answers rows.
+    For sessions with correct answer: is_correct=true, time_taken=30-90s
+    For sessions with wrong answer: is_correct=false, time_taken=90-240s
+    [NOTE] Longer time_taken on wrong answers demonstrates time-on-question
+    analysis working correctly.
+
+    Example for SESSION 3 (Chemistry 45% score):
+      q1: user_answer=B, correct_answer=A, is_correct=false, time=185s
+      q2: user_answer=A, correct_answer=A, is_correct=true,  time=42s
+      q3: user_answer=D, correct_answer=C, is_correct=false, time=210s
+      ... (9 correct, 11 wrong — all with realistic time_taken values)
+
+    ============================================================
+    seedConceptGraphNodes():
+    ============================================================
+    Seed 12 concept graph nodes across 3 topics:
+
+    Topic: jee-physics-thermodynamics (4 nodes):
+      concept: "First Law of Thermodynamics",   mastery: 0.45
+      concept: "Entropy",                        mastery: 0.30
+      concept: "Gibbs Free Energy",              mastery: 0.25
+      concept: "Carnot Engine",                  mastery: 0.20
+
+    Topic: jee-chemistry-organic-goc (4 nodes):
+      concept: "Inductive Effect",               mastery: 0.35
+      concept: "Mesomeric Effect",               mastery: 0.25
+      concept: "Hyperconjugation",               mastery: 0.15
+      concept: "Carbocation Stability",          mastery: 0.20
+
+    Topic: jee-math-integration (4 nodes):
+      concept: "Integration by Parts",           mastery: 0.40
+      concept: "Substitution Method",            mastery: 0.60
+      concept: "Definite Integrals",             mastery: 0.55
+      concept: "LIATE Rule",                     mastery: 0.35
+
+    Topic: jee-physics-kinematics (3 nodes, strong topic):
+      concept: "Equations of Motion",            mastery: 0.90
+      concept: "Projectile Motion",              mastery: 0.85
+      concept: "Relative Motion",                mastery: 0.80
+
+    ============================================================
+    seedCommunityData():
+    ============================================================
+    Seed 1 community thread with 2 answers:
+
+    THREAD: "How to approach JEE Advanced Organic Chemistry?"
+      id: '00000000-0000-0000-0000-000000000050'
+      user_id: DEMO_USER_ID
+      exam_id: jee, subject_id: chemistry
+      title: "How to approach JEE Advanced Organic Chemistry?"
+      body: "I'm struggling with GOC especially inductive and mesomeric
+        effects. Which textbook is best for JEE Advanced organic?"
+      upvote_count: 7, answer_count: 2, is_resolved: true
+
+    ANSWER 1 (from mentor):
+      id: '00000000-0000-0000-0000-000000000051'
+      thread_id: THREAD_ID, user_id: DEMO_MENTOR_ID
+      body: "Start with NCERT and then move to MS Chauhan. Focus on
+        understanding the electron-donating/withdrawing nature first
+        before memorizing effects. Inductive effect is distance-dependent
+        while mesomeric operates through conjugation."
+      is_mentor_answer: true, upvote_count: 12, is_accepted: true
+
+    ANSWER 2 (from Arjun himself — allowed):
+      body: "Also try Himanshu Pandey for practice. The GOC chapter in
+        JD Lee has great explanations too."
+      upvote_count: 3
+
+    ============================================================
+    seedMentorData():
+    ============================================================
+    Seed a demo mentor user:
+
+    INSERT INTO users (id, email, password_hash, full_name, role,
+      is_email_verified, onboarding_complete)
+    VALUES (
+      '00000000-0000-0000-0000-000000000099',
+      'mentor@prepcreatine.demo',
+      '$2a$12$demoHashMentor...',
+      'Dr. Priya Mehta',
+      'MENTOR',
+      true, true
+    ) ON CONFLICT (id) DO NOTHING;
+
+    INSERT INTO mentor_student_links (mentor_id, student_id, mentor_code)
+    VALUES (
+      '00000000-0000-0000-0000-000000000099',
+      '00000000-0000-0000-0000-000000000001',
+      'PRI-DEMO99'
+    ) ON CONFLICT (mentor_id, student_id) DO NOTHING;
+
+    INSERT INTO mentor_notes (mentor_id, student_id, content)
+    VALUES (
+      '00000000-0000-0000-0000-000000000099',
+      '00000000-0000-0000-0000-000000000001',
+      'Arjun is doing well in Physics but needs to focus more on Organic
+      Chemistry, particularly GOC. Recommend 30 mins daily on reaction
+      mechanisms before the next full mock. Score trend is improving —
+      keep it up!'
+    ) ON CONFLICT (mentor_id, student_id) DO UPDATE SET
+      content = EXCLUDED.content;
+
+    ============================================================
+    seedDailyPlan():
+    ============================================================
+    Seed a pre-generated daily plan for today:
+
+    INSERT INTO daily_plans (user_id, plan_date, total_minutes,
+      sessions_json, motivation_msg)
+    VALUES (
+      DEMO_USER_ID,
+      CURRENT_DATE,
+      120,
+      '[
+        {"type":"review","topicId":"jee-physics-work-energy",
+         "topicName":"Work, Energy and Power","subjectId":"physics",
+         "subjectName":"Physics","durationMins":20,
+         "reason":"Due for spaced repetition — last reviewed 8 days ago"},
+        {"type":"review","topicId":"jee-physics-circular-motion",
+         "topicName":"Circular Motion","subjectId":"physics",
+         "subjectName":"Physics","durationMins":20,
+         "reason":"Due for spaced repetition — 6-day review interval"},
+        {"type":"review","topicId":"jee-chemistry-equilibrium",
+         "topicName":"Chemical Equilibrium","subjectId":"chemistry",
+         "subjectName":"Chemistry","durationMins":25,
+         "reason":"Weak area — due for spaced repetition review"},
+        {"type":"practice","topicId":"jee-chemistry-organic-goc",
+         "topicName":"General Organic Chemistry","subjectId":"chemistry",
+         "subjectName":"Chemistry","durationMins":30,
+         "reason":"Weak topic (45% score) — targeted practice drill ready"},
+        {"type":"new","topicId":"jee-math-probability",
+         "topicName":"Probability","subjectId":"mathematics",
+         "subjectName":"Mathematics","durationMins":25,
+         "reason":"Next unstarted topic in your JEE Math syllabus"}
+      ]',
+      'With 60 days to JEE, finishing Organic GOC this week keeps you
+      exactly on track — your Physics scores are already strong.'
+    ) ON CONFLICT (user_id, plan_date) DO UPDATE SET
+      sessions_json = EXCLUDED.sessions_json,
+      motivation_msg = EXCLUDED.motivation_msg;
+
+    ============================================================
+    seedNotifications():
+    ============================================================
+    Seed 4 notifications:
+
+    1. type: streak_milestone
+       title: "14-day study streak! 🔥"
+       body: "You've studied 14 days in a row. Keep the momentum going!"
+       is_read: false
+
+    2. type: mentor_note
+       title: "Dr. Priya Mehta left you a note"
+       body: "Arjun is doing well in Physics but needs to focus on..."
+       is_read: false
+
+    3. type: test_result
+       title: "New targeted drill ready"
+       body: "3 new questions on General Organic Chemistry based on your
+              recent test performance. Practice them now!"
+       action_url: "/test/00000000-0000-0000-0000-000000000036"
+       is_read: false
+
+    4. type: chapter_complete
+       title: "Chapter completed!"
+       body: "You've completed all topics in Electrochemistry. 
+              Great work!"
+       is_read: true
+
+    ============================================================
+    seedQuestions():
+    ============================================================
+    Seed 30 questions in the questions table for demo tests:
+
+    For each of these topic/level combinations, seed 6 questions:
+      jee-chemistry-organic-goc, level 2, type mcq (6 questions)
+      jee-math-integration, level 2, type mcq (6 questions)
+      jee-physics-thermodynamics, level 2, type mcq (6 questions)
+      jee-physics-kinematics, level 1, type mcq (6 questions)
+      jee-math-coordinates, level 2, type integer (6 questions)
+
+    Sample question for organic-goc:
+      question_text: "The order of -I effect of the following groups is:
+        (A) -NO2 > -CN > -COOH > -F
+        (B) -F > -CN > -NO2 > -COOH
+        (C) -NO2 > -CN > -F > -COOH
+        (D) -F > -NO2 > -CN > -COOH"
+      correct_answer: "A"
+      explanation: "The -I effect follows electronegativity and the ability
+        to withdraw electrons. -NO2 has the strongest -I effect due to
+        resonance-assisted induction. Order: -NO2 > -CN > -COOH > -F
+        for overall electron withdrawal through sigma bonds."
+      is_ai_generated: false
+      source_ref: "JEE Main 2022 style"
+
+    [NOTE] Seed enough questions that all 3 test types work in demo
+    without triggering AI generation (which needs quota). 6 per topic
+    is sufficient for topic_wise (20 needed — AI fills the rest) and
+    rapid_fire (10 needed — AI fills the rest).
+
+  } // end seedDemoData()
+
+  [REQUIRED] ALL seed methods must be wrapped in try-catch per method.
+  A failure in seedCommunityData() must NOT prevent the core demo data
+  (user, context, syllabus, tests) from being saved.
+
+  [LOG] INFO: "[DemoUserSeeder] Seeding {method}: start"
+  [LOG] INFO: "[DemoUserSeeder] Seeding {method}: complete ({N} rows)"
+  [LOG] WARN: "[DemoUserSeeder] Seeding {method}: failed - {error}"
+  [FORBIDDEN] Never throw from seedDemoData() unless the CORE user row
+  fails. All other failures must be logged and skipped.
+
+================================================================================
+SECTION 6: API ENDPOINTS
+================================================================================
+
+All v2.0 endpoints remain unchanged.
+
+DEMO MODE BEHAVIOUR PER ENDPOINT:
+
+  All endpoints behave identically to production. The only difference is that
+  the authenticated user is always the demo user (Arjun Sharma) regardless of
+  what JWT cookie is present (or absent).
+
+  Specific endpoint demo behaviours:
+
+  GET /api/auth/me
+    [DEMO] Always returns Arjun Sharma's AuthResponse. No DB call needed
+    (handled by DemoAuthController).
+
+  POST /api/auth/login
+    [DEMO] Ignores credentials. Returns Arjun's AuthResponse with 200.
+    Sets a cookie named 'prepcreatine_token' with value 'demo-token-arjun'
+    (frontend doesn't read this cookie but some code may check its presence).
+
+  POST /api/auth/signup
+    [DEMO] Ignores all fields. Returns Arjun's AuthResponse with 201.
+
+  POST /api/onboarding/complete
+    [DEMO] Always returns 200 with Arjun's AuthResponse. No DB changes.
+    Judges can fill the onboarding form and it "works" without actually
+    changing Arjun's profile (profile is always reset to JEE on next request).
+
+  GET /api/syllabus/review-due
+    [DEMO] Returns the 6 topics seeded with next_review_date <= today.
+    This is real DB data — no special handling needed.
+
+  GET /api/planner/today
+    [DEMO] Returns the pre-seeded daily plan. Cache is populated by seeder.
+    No Gemini call needed for first load.
+
+  POST /api/chat/stream
+    [DEMO] Fully functional. Uses Arjun's UserContext (JEE, weakTopics).
+    First message can be about thermodynamics — the seeded conversation
+    and sources provide rich context.
+
+  GET /api/test/sessions
+    [DEMO] Returns the 8 seeded test sessions (6 submitted + 2 in_progress).
+
+  POST /api/test/sessions/{id}/submit
+    [DEMO] Fully functional. Judges can submit a test and see real SM-2
+    updates, real weak topic changes, and real targeted drill generation.
+
+  GET /api/analytics/me
+    [DEMO] Returns real computed analytics from seeded data:
+      topicsCompleted: 45
+      testsTaken: 6
+      averageScore: 61.8%
+      currentStreak: 14
+      readinessScore: 61
+      spacedRepStats.totalDueToday: 6
+
+  GET /api/analytics/knowledge-graph
+    [DEMO] Returns the 15 seeded concept graph nodes across 4 topics.
+
+  GET /api/community/threads
+    [DEMO] Returns the seeded thread + any threads created during demo.
+
+  GET /api/mentor/students (when logged in as mentor)
+    [DEMO] The DemoUserFilter always injects the STUDENT user. To demo the
+    mentor view, the judge needs to navigate to /mentor directly. Add a
+    "Switch to Mentor View" button in the demo UI that temporarily changes
+    the injected user to the MENTOR. See DEMO NAVIGATION section below.
+
+================================================================================
+SECTION 6A: DEMO NAVIGATION HELPER ENDPOINT
+================================================================================
+
+GET /api/demo/status  [NEW - demo mode only]
+  @ConditionalOnProperty(name = "app.demo-mode", havingValue = "true")
+  Returns information about the current demo state.
+  No auth required (permitted in SecurityConfig).
+  Response (200): {
+    demoMode: true,
+    demoUser: {
+      userId: "00000000-0000-0000-0000-000000000001",
+      fullName: "Arjun Sharma",
+      examType: "jee",
+      examDate: "YYYY-MM-DD",
+      currentStreak: 14,
+      topicsCompleted: 45,
+      reviewDueToday: 6,
+      readinessScore: 61
+    },
+    availableFeatures: [
+      "Spaced Repetition (6 topics due today)",
+      "Daily Study Plan (pre-generated)",
+      "AI Tutor Chat (Thermodynamics + Integration notes loaded)",
+      "Mock Test (Full mock + Targeted drills available)",
+      "Knowledge Graph (15 concepts across 4 topics)",
+      "YouTube Video Import",
+      "Community Q&A (1 thread with mentor answer)",
+      "Mentor Dashboard (Dr. Priya Mehta linked)",
+      "Analytics Dashboard (14-day streak, 6 tests)"
+    ],
+    demoScript: {
+      step1: "Home screen — review due widget shows 6 topics",
+      step2: "Today's Plan — 5-session daily plan with motivation",
+      step3: "Chat — ask about thermodynamics entropy",
+      step4: "Syllabus — mark jee-physics-semiconductors as done → SM-2",
+      step5: "Take targeted drill — Session 36 (Organic GOC, 3 Qs)",
+      step6: "Analytics — knowledge graph, readiness score 61",
+      step7: "Notes — paste YouTube URL for a Vedantu/PW video",
+      step8: "Community — show mentor answer + Reddit pulse",
+      step9: "Game mode — start a thermodynamics game"
+    }
+  }
+
+GET /api/demo/reset  [NEW - demo mode only]
+  Resets all mutable demo data back to the seeded state.
+  Useful between demo runs with different judges.
+  Process:
+    1. Delete all test sessions created after the 8 seeded ones
+    2. Reset topic progress to seeded state (re-run seedSyllabusProgress())
+    3. Delete concept graph nodes not in the seeded 15
+    4. Delete sources not in the seeded 2
+    5. Delete notifications not in the seeded 4
+    6. Reset daily plan to seeded version
+    7. Invalidate all Caffeine caches
+  Response (200): { message: "Demo data reset successfully." }
+  [LOG] INFO: "[Demo] Reset triggered"
+
+================================================================================
+SECTION 7: AI PROMPT TEMPLATES
+================================================================================
+(All v2.0 prompts unchanged. No modifications needed for demo mode —
+ all AI features work with real Gemini calls using Arjun's seeded context.)
+
+================================================================================
+SECTION 8: CONFIGURATION FILES
+================================================================================
+
+--- application.properties --- [MOD: demo mode property added]
+  (All v2.0 properties unchanged. Added:)
+  app.demo-mode=${DEMO_MODE:false}
+
+--- application-demo.properties --- [NEW]
+  # Activate this profile with: spring.profiles.active=demo
+  # OR set environment variable: SPRING_PROFILES_ACTIVE=demo
+  # OR set: DEMO_MODE=true in environment
+
+  app.demo-mode=true
+
+  # In demo mode: disable strict HTTPS cookie
+  jwt.cookie-secure=false
+
+  # In demo mode: allow all CORS origins (judges use localhost)
+  cors.allowed-origins=*
+
+  # In demo mode: very permissive rate limits (judges may click fast)
+  # Override Bucket4j limits to 1000 per minute per IP
+  ratelimit.chat=1000
+  ratelimit.global=1000
+  ratelimit.youtube=1000
+
+  # In demo mode: verbose logging so team can see what's happening
+  logging.level.com.prepcreatine=DEBUG
+
+  # Corpus seeding always on in demo mode
+  corpus.seed-on-startup=true
+  corpus.force-reseed=false
+
+--- application-dev.properties --- (unchanged from v2.0)
+--- application-prod.properties --- (unchanged from v2.0)
+
+--- .env.example --- [MOD: demo mode key added]
+  DATABASE_URL=jdbc:postgresql://localhost:5432/prepcreatine
+  DB_USERNAME=prepcreatine_user
+  DB_PASSWORD=change_this_in_production
+  JWT_SECRET=minimum_64_character_random_string_here_use_openssl_rand_base64_64
+  COOKIE_DOMAIN=localhost
+  COOKIE_SECURE=false
+  FRONTEND_ORIGIN=http://localhost:5173
+  GEMINI_API_KEY=your_gemini_api_key_here
+  YOUTUBE_API_KEY=your_youtube_data_api_v3_key_here
+  REDDIT_CLIENT_ID=your_reddit_app_client_id
+  REDDIT_CLIENT_SECRET=your_reddit_app_client_secret
+  MAIL_HOST=smtp.gmail.com
+  MAIL_PORT=587
+  MAIL_USERNAME=your_email@gmail.com
+  MAIL_PASSWORD=your_gmail_app_password
+  PORT=8080
+  CORPUS_SEED_ON_STARTUP=true
+  CORPUS_FORCE_RESEED=false
+  DEMO_MODE=true     ← SET THIS TO true FOR HACKATHON DEMO
+                        SET TO false FOR PRODUCTION
+
+================================================================================
+SECTION 9: KEY SERVICE IMPLEMENTATIONS
+================================================================================
+(All v2.0 service implementations unchanged.)
+
+DEMO MODE IMPACT ON SERVICES:
+
+  All services work identically in demo mode. They receive Arjun's userId
+  from the SecurityContext (set by DemoUserFilter) and operate on his DB data.
+
+  SpacedRepetitionService: unchanged — works on Arjun's topic progress
+  StudyPlannerService: unchanged — reads Arjun's UserContext and review queue
+  AdaptiveQuizService: unchanged — generates real targeted drills
+  YouTubeTranscriptService: unchanged — real transcript extraction
+  SystemCorpusSeeder: unchanged — seeds real NCERT corpus
+  ChatService: unchanged — real Gemini streaming with Arjun's weak topics
+  GeminiService: unchanged — real API calls (GEMINI_API_KEY required even in demo)
+
+  [NOTE] The only real API key needed for the demo is GEMINI_API_KEY.
+  YOUTUBE_API_KEY is needed for YouTube video import (Module 5 demo).
+  REDDIT_CLIENT_ID/SECRET needed for community Reddit pulse.
+  Email (MAIL_*) is NOT needed for demo — email calls are logged but not sent:
+    In demo mode: EmailService.sendEmail() logs "Demo mode — email suppressed"
+    and returns without making the SMTP call.
+
+--- EmailService.java --- [MOD for demo mode]
+  @Service
+  public class EmailService {
+    @Value("${app.demo-mode:false}")
+    private boolean demoMode;
+
+    public void sendEmail(String to, String subject, String templateName,
+                          Map<String, Object> variables) {
+      if (demoMode) {
+        log.info("[EmailService] Demo mode — email suppressed. To: {}, " +
+                 "Subject: {}", to, subject);
+        return;
+      }
+      // ... real SMTP send logic unchanged ...
+    }
+  }
+
+================================================================================
+SECTION 10: GLOBAL EXCEPTION HANDLER
+================================================================================
+(Unchanged from v2.0.)
+
+DEMO MODE ADDITION:
+  In the catch-all @ExceptionHandler(Exception.class) → 500 handler:
+  If demoMode is true, include slightly more detail in the response message
+  to help the team debug during the presentation:
+    Production message: "An unexpected error occurred."
+    Demo message: "An error occurred: {e.getClass().getSimpleName()} — 
+                   check the backend console for details."
+  [NOTE] This is safe because demo mode is only used in a controlled setting.
+
+================================================================================
+SECTION 11: LOGGING STANDARDS
+================================================================================
+(All v2.0 logging standards unchanged.)
+
+DEMO MODE LOG ADDITIONS:
+  [LOG] Every request in demo mode logs at DEBUG:
+    "[DemoUserFilter] Request: {} {} → injecting demo user Arjun Sharma"
+  [LOG] Every DemoAuthController endpoint logs at INFO:
+    "[DemoAuth] {} called → returning demo user"
+  [LOG] Demo reset endpoint logs at INFO:
+    "[Demo] Reset complete: {} rows affected"
+
+================================================================================
+SECTION 12: PERFORMANCE OPTIMISATIONS
+================================================================================
+(All v2.0 optimisations unchanged.)
+
+DEMO MODE PERFORMANCE NOTES:
+  - The daily plan is pre-seeded → first load of /api/planner/today is instant
+    (no Gemini call required for the demo's first page view)
+  - Analytics are computed fresh from seeded data → realistic response time (~200ms)
+  - 6 review-due topics are immediately visible → spaced rep demo is instant
+  - First AI chat message triggers real Gemini call → 1-3 second latency expected
+  - System corpus seeding happens on startup → first chat response is NCERT-grounded
+
+================================================================================
+SECTION 13: DOCKER AND DEPLOYMENT
+================================================================================
+
+--- Dockerfile --- (unchanged from v2.0)
+
+--- docker-compose.yml --- [NEW - for local demo setup]
+  version: '3.8'
+  services:
+    db:
+      image: pgvector/pgvector:pg16
+      environment:
+        POSTGRES_DB: prepcreatine
+        POSTGRES_USER: prepcreatine_user
+        POSTGRES_PASSWORD: demopassword123
+      ports:
+        - "5432:5432"
+      volumes:
+        - pgdata:/var/lib/postgresql/data
+
+    backend:
+      build: .
+      environment:
+        DATABASE_URL: jdbc:postgresql://db:5432/prepcreatine
+        DB_USERNAME: prepcreatine_user
+        DB_PASSWORD: demopassword123
+        JWT_SECRET: prepcreatine-demo-jwt-secret-must-be-64-chars-minimum-hackathon
+        GEMINI_API_KEY: ${GEMINI_API_KEY}
+        YOUTUBE_API_KEY: ${YOUTUBE_API_KEY}
+        FRONTEND_ORIGIN: http://localhost:5173
+        COOKIE_SECURE: false
+        DEMO_MODE: true
+        SPRING_PROFILES_ACTIVE: demo
+        CORPUS_SEED_ON_STARTUP: true
+      ports:
+        - "8080:8080"
+      depends_on:
+        - db
+
+  volumes:
+    pgdata:
+
+  [NOTE] Run with: GEMINI_API_KEY=your_key YOUTUBE_API_KEY=your_key
+                   docker-compose up --build
+  This starts the full stack with demo mode in one command.
+
+--- STARTUP SEQUENCE (demo mode) ---
+  1. Spring Boot starts, Flyway runs V1–V18 migrations
+  2. SystemCorpusSeeder fires (ApplicationReadyEvent) — async
+     Seeds NCERT corpus, embeds with Gemini (~30 seconds, background)
+  3. DemoUserSeeder fires (ApplicationReadyEvent) — async
+     Seeds all demo data (~5 seconds, background)
+  4. Backend is ready to serve requests (port 8080)
+  5. Frontend (Vite dev server) connects on port 5173
+  6. Judge opens http://localhost:5173
+  7. Every page loads instantly — no login required, all data pre-seeded
+
+  [REQUIRED] DemoUserSeeder must complete BEFORE the first judge interaction.
+  The corpus seeding (Step 2) can still be in progress — it only affects
+  the system RAG chunks. The demo user data (Step 3) is critical.
+  Add a startup health check that waits for demo seeding to complete before
+  marking the /actuator/health endpoint as UP.
+
+================================================================================
+SECTION 14: TESTING STRATEGY
+================================================================================
+(All v2.0 tests unchanged.)
+
+DEMO MODE TESTS [NEW]:
+
+  DemoUserSeederTest:
+    - All seed methods execute without error on a fresh DB
+    - Idempotency: running seeder twice produces same result
+    - Demo user UUID exists in users table after seeding
+    - 45 topics with status='done' exist for demo user
+    - 6 or more topics with next_review_date <= today exist
+    - 8 test sessions exist with correct types and scores
+
+  DemoUserFilterTest:
+    - Every request has SecurityContext populated with demo user
+    - User UUID in SecurityContext matches DEMO_USER_ID
+    - Filter is absent from context when app.demo-mode=false
+
+  DemoAuthControllerTest:
+    - POST /api/auth/login with any credentials → 200 with Arjun's data
+    - POST /api/auth/signup with any credentials → 201 with Arjun's data
+    - GET /api/auth/me → Arjun's AuthResponse
+    - GET /api/demo/status → demo info response with availableFeatures
+
+================================================================================
+SECTION 15: FORBIDDEN PATTERNS
+================================================================================
+(All v2.0 forbidden patterns unchanged. Demo mode additions:)
+
+DEMO MODE FORBIDDEN:
+  [ ] NEVER set DEMO_MODE=true in the production deployment environment
+  [ ] NEVER remove the @ConditionalOnProperty annotations from DemoUserFilter
+      or DemoAuthController — they must not exist in the production context
+  [ ] NEVER hardcode DEMO_USER_ID anywhere except DemoModeConfig.java —
+      always reference DemoModeConfig.DEMO_USER_ID as a constant
+  [ ] NEVER make DemoUserSeeder modify data that was not created by it —
+      it must only INSERT ... ON CONFLICT DO NOTHING or insert its own rows
+  [ ] NEVER cache the demo user object across requests — load from DB each
+      time (it's fast — UUID primary key lookup, < 1ms)
+  [ ] NEVER suppress exceptions in DemoUserFilter — if the demo user cannot
+      be loaded, fail loudly with a clear error message
+  [ ] NEVER skip seeding the questions table — without questions, test sessions
+      cannot be started and the mock test demo will break
+
+================================================================================
+SECTION 16: FRONTEND CONTRACT SUMMARY
+================================================================================
+(All v2.0 contracts unchanged.)
+
+DEMO MODE FRONTEND CONTRACT:
+
+  The frontend needs ZERO code changes for demo mode. It talks to the same
+  API endpoints and receives the same response shapes. The only difference
+  is that responses contain Arjun Sharma's data instead of a new user's data.
+
+  HOWEVER, the frontend should handle one UX case:
+  When the judge clicks "Get started free" on the landing page → navigates
+  to /signup → fills form → clicks "Create account":
+    The demo backend returns 201 with onboardingComplete=true and examType='jee'
+    The frontend should detect onboardingComplete=true and redirect to /home
+    NOT to /onboarding
+  [NOTE] This is already the standard auth flow behaviour — no change needed.
+
+  OPTIONAL FRONTEND IMPROVEMENT (not required but nice for demo):
+  Add a small "Demo Mode" banner at the bottom of every page:
+    "PrepCreatine Demo · Logged in as Arjun Sharma (JEE) · 
+     <a>Reset demo data</a>"
+  Banner calls GET /api/demo/reset when "Reset demo data" is clicked.
+  This is a 1-hour frontend task that makes the demo much more polished.
+
+================================================================================
+SECTION 17: HACKATHON DEMO SCRIPT
+================================================================================
+[NEW SECTION — not in v2.0]
+
+This section documents the optimal demo flow for the 3-minute demo video
+and the live judge interaction. Follow this order to showcase all 5 modules
+plus both bonus features.
+
+TOTAL TIME BUDGET: 3 minutes (180 seconds)
+  Module 1 (Spaced rep):  30 seconds
+  Module 2 (Daily plan):  20 seconds
+  Module 3 (Adaptive Q):  35 seconds
+  Module 4 (RAG + Hindi): 30 seconds
+  Module 5 (YouTube):     25 seconds
+  Bonus (Proctoring):     15 seconds
+  Wrap / closing:         25 seconds
+
+--- STEP 1 [0:00 – 0:30] HOME SCREEN / SPACED REPETITION ---
+  Open http://localhost:5173 — no login required, goes straight to /home.
+  Show: "Review Due Today — 6 topics" widget prominently on home screen.
+  Click into the widget — show the 6 topics with their subjects and days overdue.
+  Click "Study now" on "Work, Energy and Power" → AI chat opens pre-loaded
+  with that topic. Say: "This is Module 1 — our spaced repetition engine uses
+  the SM-2 algorithm. Arjun has 6 topics due for review today based on his
+  forgetting curve. The system schedules reviews automatically."
+
+--- STEP 2 [0:30 – 0:50] AUTONOMOUS DAILY PLAN ---
+  Navigate to /planner (or click "Today" in sidebar).
+  Show the pre-generated 5-session plan with types: review/review/review/practice/new.
+  Highlight the motivation message at the top.
+  Click "Start" on the GOC Practice session → navigates to the targeted drill.
+  Say: "Module 2 — the AI agent generates this plan every morning based on
+  spaced rep schedule, weak areas, and exam countdown. No manual input."
+
+--- STEP 3 [0:50 – 1:25] ADAPTIVE QUESTION GENERATION ---
+  From the targeted practice session (GOC, 3 questions — pre-seeded).
+  Show the test interface: JEE-style, question palette, timer.
+  Answer question 1 wrong (deliberately) — show: wrong answer highlighted red.
+  Submit after 3 questions → results page.
+  Show: "Score: 33% — Targeted practice generated for General Organic Chemistry"
+  Show the SM-2 update: "Next review in 1 day" for this topic.
+  Navigate back and show that a NEW targeted drill is now ready (or will be in
+  a moment — the async generation takes ~5 seconds).
+  Say: "Module 3 — questions are generated in JEE PYQ style. Time-on-question
+  is tracked. Wrong answers immediately trigger a new targeted drill."
+
+--- STEP 4 [1:25 – 1:55] AI TUTOR + RAG (NCERT GROUNDED) + HINDI ---
+  Navigate to /learn → open a new chat.
+  Type: "Explain entropy from my thermodynamics notes"
+  Show: RAG kicks in → response shows "📚 Grounded in: My Thermodynamics Notes,
+  NCERT Physics Ch.5 — Thermodynamics"
+  After response: click the microphone button, speak in Hindi:
+  "Gibbs free energy kya hota hai?"
+  Show: voice recognized, question submitted, response comes in Hinglish.
+  Optionally show TTS reading the response aloud.
+  Say: "Module 4 — answers are grounded in NCERT curriculum AND Arjun's own
+  notes. Not hallucinated. Bonus: Hindi/Hinglish voice input and output."
+
+--- STEP 5 [1:55 – 2:20] YOUTUBE VIDEO PROCESSOR ---
+  Navigate to /notes → click "YouTube Video" tab.
+  Paste: https://www.youtube.com/watch?v=OWJCfOvochA
+  (or any Vedantu/Physics Wallah video on thermodynamics — test beforehand)
+  Show: "Extracting transcript..." → "Generating notes..."
+  While it processes (10-15 seconds), click on SOURCE 1 (already processed).
+  Show: Study Guide tab (summary, key concepts, 5 exam questions).
+  Show: Mind Map tab (React Flow concept graph).
+  Show: Chat tab (ask "What does this video say about carnot efficiency?")
+  Say: "Module 5 — paste any YouTube educational video URL. We extract the
+  transcript, generate structured notes, and make the content searchable
+  through RAG. All in under 30 seconds."
+
+--- STEP 6 [2:20 – 2:35] PROCTORING BONUS ---
+  Navigate to /test → Start Full Mock (or use any in-progress test).
+  Show the webcam consent dialog → accept → small webcam preview appears.
+  Look away from screen for 3 seconds.
+  Submit test → results page.
+  Show Proctoring Summary: "1 gaze-away event · Integrity: High"
+  Say: "Bonus — on-device proctoring using MediaPipe. Zero data uploaded.
+  Everything runs in the browser. Privacy-preserving by design."
+
+--- STEP 7 [2:35 – 3:00] CLOSING ---
+  Show analytics dashboard:
+    Readiness score: 61/100
+    14-day streak (activity heatmap)
+    Knowledge graph (15 nodes with mastery colors)
+    Mentor note from Dr. Priya Mehta
+  Show the "Review Due Today" counter has updated (if a topic was marked done).
+  End on the home screen.
+  Say: "PrepCreatine is a retention-first AI learning companion. Spaced
+  repetition, autonomous planning, adaptive practice, RAG-grounded tutoring,
+  and YouTube video processing — all built for India's 2 million JEE and NEET
+  aspirants. Creatine for your exam prep."
+
+================================================================================
+END OF DOCUMENT
+================================================================================
+PrepCreatine BSDD v2.1 | DevClash2026 Hackathon Edition — DEMO MODE
+Total controllers: 18  (+1 DemoAuthController from v2.0)
+Total services: 29     (unchanged from v2.0)
+Total repositories: 21 (unchanged from v2.0)
+Total database tables: 22 (unchanged from v2.0)
+Total Flyway migrations: 18 (unchanged from v2.0)
+Total API endpoints: ~80 (+3 demo endpoints from v2.0)
+Stack: Java 21 + Spring Boot 3.3 + PostgreSQL 16 + pgvector + Maven
+
+DEMO MODE SUMMARY:
+  Activation: DEMO_MODE=true environment variable
+  Demo user: Arjun Sharma (fixed UUID 00000000-0000-0000-0000-000000000001)
+  Auth bypass: DemoUserFilter injects demo user into every request
+  Seeded data: 45 done topics, 6 review-due, 8 test sessions, 15 concept nodes,
+               14-day streak, 2 sources, 1 mentor, 4 notifications, daily plan
+  Auth endpoints: DemoAuthController returns demo user for any credentials
+  Production safe: all demo classes @ConditionalOnProperty(demo-mode=true)
+  Re-enable auth: set DEMO_MODE=false — zero code changes required
+  Reset between demos: GET /api/demo/reset reseeds all mutable data
+
+"Brought to you by Rudra Agrawal"
+================================================================================
