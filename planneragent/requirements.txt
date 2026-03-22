@@ -1,0 +1,24 @@
+# ── Core LangGraph / LangChain ──────────────────────────────────────────
+langgraph>=0.2.0
+langchain>=0.3.0
+langchain-anthropic>=0.2.0
+langchain-groq>=0.1.0
+langchain-core>=0.3.0
+langchain-community>=0.0.10
+duckduckgo-search>=5.0.0
+
+# ── PostgreSQL ───────────────────────────────────────────────────────────
+psycopg2-binary>=2.9.9
+
+# ── Google Calendar API (optional) ───────────────────────────────────────
+google-api-python-client>=2.130.0
+google-auth-httplib2>=0.2.0
+google-auth-oauthlib>=1.2.0
+
+# ── HTTP API server ───────────────────────────────────────────────────────
+fastapi>=0.111.0
+uvicorn>=0.29.0
+
+# ── Utilities ─────────────────────────────────────────────────────────────
+python-dotenv>=1.0.0
+pydantic>=2.7.0

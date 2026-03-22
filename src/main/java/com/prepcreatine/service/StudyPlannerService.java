@@ -9,10 +9,14 @@ import com.prepcreatine.repository.UserTopicProgressRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.*;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestTemplate;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
@@ -29,6 +33,16 @@ import java.util.stream.Collectors;
 public class StudyPlannerService {
 
     private static final Logger log = LoggerFactory.getLogger(StudyPlannerService.class);
+
+    // ── Python Planner Agent config ────────────────────────────────────────
+    @Value("${planner.agent.url:http://localhost:8001}")
+    private String plannerAgentUrl;
+
+    @Value("${planner.agent.enabled:true}")
+    private boolean plannerAgentEnabled;
+
+    @Autowired
+    private RestTemplate restTemplate;
 
     private final JdbcTemplate               jdbc;
     private final UserContextRepository      contextRepo;
@@ -60,7 +74,8 @@ public class StudyPlannerService {
 
     /**
      * Returns today's study plan. Cached in daily_plans table.
-     * If no plan exists yet, generates one via Gemini.
+     * Primary: fetches from Python LangGraph planner agent (agent_study_plan table).
+     * Fallback: generates via Gemini if agent is not running or fails.
      */
     @Transactional(readOnly = true)
     public Map<String, Object> getTodayPlan(UUID userId) {
@@ -77,20 +92,207 @@ public class StudyPlannerService {
         Integer rawGoal = ctx != null ? ctx.getDailyGoalMins() : null;
         int dailyGoal  = rawGoal != null ? rawGoal : 120;
 
-
-        // 3. Load review-due topics
+        // 3. Load review-due topics (always computed regardless of agent)
         List<UserTopicProgress> dueToday = spacedRep.getDueToday(userId);
 
-        // 4. Load weak topics from context
+        // 4. Try the Python LangGraph planner agent
+        if (plannerAgentEnabled) {
+            try {
+                Map<String, Object> agentPlan = buildPlanViaAgent(userId, ctx, examId, dailyGoal, dueToday);
+                if (agentPlan != null) {
+                    savePlan(userId, LocalDate.now(), agentPlan);
+                    return agentPlan;
+                }
+            } catch (Exception e) {
+                log.warn("[Planner] Agent call failed ({}) — falling back to Gemini", e.getMessage());
+            }
+        }
+
+        // 5. Fallback: generate via Gemini (existing path unchanged)
         String[] weakTopics = ctx != null && ctx.getWeakTopics() != null ? ctx.getWeakTopics() : new String[0];
-
-        // 5. Build plan
         Map<String, Object> plan = buildPlan(userId, examId, dailyGoal, dueToday, weakTopics, ctx);
-
-        // 6. Cache to daily_plans
         savePlan(userId, LocalDate.now(), plan);
+        return plan;
+    }
+
+    /**
+     * Calls the Python LangGraph planner agent to get today's sessions.
+     * Returns null if the agent has no plan yet AND plan generation fails.
+     */
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> buildPlanViaAgent(UUID userId, UserContext ctx,
+                                                   String examId, int dailyGoal,
+                                                   List<UserTopicProgress> dueToday) {
+        String userIdStr = userId.toString();
+
+        // Step 1 — check if agent plan exists
+        String checkUrl = plannerAgentUrl + "/check-plan/" + userIdStr;
+        Map<?, ?> checkResp = restTemplate.getForObject(checkUrl, Map.class);
+        boolean planExists = checkResp != null && Boolean.TRUE.equals(checkResp.get("plan_exists"));
+
+        // Step 2 — if not, generate one (~15-40s). Runs synchronously here.
+        if (!planExists) {
+            log.info("[Planner] No agent plan — generating for userId={}", userId);
+            String genUrl = plannerAgentUrl + "/generate-plan";
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("user_id",          userIdStr);
+            body.put("exam_name",         ctx != null && ctx.getExamType() != null
+                ? ctx.getExamType().toUpperCase() : "JEE");
+            body.put("target_exam_year",  ctx != null && ctx.getExamDate() != null
+                ? ctx.getExamDate().getYear() : 2026);
+            body.put("daily_study_hours", dailyGoal / 60.0);
+            body.put("student_level",     "Intermediate");
+            body.put("plan_start_date",   LocalDate.now().toString());
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            ResponseEntity<Map> genResp = restTemplate.postForEntity(
+                genUrl, new HttpEntity<>(body, headers), Map.class);
+            if (!genResp.getStatusCode().is2xxSuccessful()) {
+                log.warn("[Planner] Agent plan generation failed: {}", genResp.getStatusCode());
+                return null;
+            }
+            log.info("[Planner] Agent plan generated: {} sessions",
+                genResp.getBody() != null ? genResp.getBody().get("total_sessions") : "?");
+        }
+
+        // Step 3 — compute week + day position since plan start
+        LocalDate startDate = ctx != null && ctx.getCreatedAt() != null
+            ? ctx.getCreatedAt().toLocalDate() : LocalDate.now();
+        long daysSince = ChronoUnit.DAYS.between(startDate, LocalDate.now());
+        int currentWeek = (int)(daysSince / 7) + 1;
+        int currentDay  = (int)(daysSince % 7) + 1;
+
+        // Step 4 — fetch today's agent sessions
+        String todayUrl = plannerAgentUrl + "/today-sessions/" + userIdStr
+            + "?week=" + currentWeek + "&day=" + currentDay;
+        Map<?, ?> todayResp = restTemplate.getForObject(todayUrl, Map.class);
+        List<Map<String, Object>> agentSessions = todayResp != null
+            ? (List<Map<String, Object>>) todayResp.get("sessions")
+            : Collections.emptyList();
+
+        if (agentSessions == null || agentSessions.isEmpty()) {
+            log.warn("[Planner] Agent returned 0 sessions for userId={} week={} day={}",
+                userId, currentWeek, currentDay);
+            return null;
+        }
+
+        // Step 5 — prepend SM-2 review-due sessions (max 2)
+        List<Map<String, Object>> sessions = new ArrayList<>();
+        Set<String> reviewTopicKeys = new HashSet<>();
+
+        dueToday.stream().limit(2).forEach(r -> {
+            String topicName = humanTopicName(r.getTopicId());
+            reviewTopicKeys.add((r.getSubjectId() != null ? r.getSubjectId() : "") + "::" + topicName);
+            sessions.add(Map.of(
+                "type",        "review",
+                "topicId",     r.getTopicId(),
+                "topicName",   topicName,
+                "subjectId",   r.getSubjectId() != null ? r.getSubjectId() : "general",
+                "subjectName", capitalize(r.getSubjectId() != null ? r.getSubjectId() : "General"),
+                "durationMins", 20,
+                "reason",      "Spaced repetition due today — forgetting curve requires review"
+            ));
+        });
+
+        // Step 6 — merge agent sessions (skipping anything already in review)
+        for (Map<String, Object> s : agentSessions) {
+            String subj  = (String) s.getOrDefault("subject", "General");
+            String topic = (String) s.getOrDefault("topic", "Topic");
+            String key   = subj.toLowerCase() + "::" + topic;
+            if (!reviewTopicKeys.contains(key)) {
+                int durationMins = s.get("duration_mins") != null
+                    ? ((Number) s.get("duration_mins")).intValue() : 60;
+                Map<String, Object> session = new LinkedHashMap<>();
+                session.put("type",        s.getOrDefault("session_type", "new"));
+                session.put("topicId",     examId + "-" + subj.toLowerCase().replace(" ", "-")
+                    + "-" + topic.toLowerCase().replace(" ", "-").substring(0, Math.min(20, topic.length())));
+                session.put("topicName",   topic);
+                session.put("subjectId",   subj.toLowerCase().replace(" ", "-"));
+                session.put("subjectName", subj);
+                session.put("durationMins", durationMins);
+                session.put("reason",      "From your " + examId.toUpperCase() + " study plan (LangGraph agent)");
+                sessions.add(session);
+            }
+        }
+
+        int totalMins = sessions.stream()
+            .mapToInt(s -> ((Number) s.getOrDefault("durationMins", 0)).intValue()).sum();
+
+        long daysToExam = ctx != null && ctx.getExamDate() != null
+            ? ChronoUnit.DAYS.between(LocalDate.now(), ctx.getExamDate()) : -1;
+        String motivationMsg = dueToday.size() > 0
+            ? String.format("You have %d spaced repetition reviews due today. %s days to %s.",
+                Math.min(2, dueToday.size()), daysToExam > 0 ? daysToExam : "?", examId.toUpperCase())
+            : String.format("Today's %d-minute plan keeps you on track. %s days to %s — every session counts.",
+                totalMins, daysToExam > 0 ? daysToExam : "?", examId.toUpperCase());
+
+        Map<String, Object> plan = new LinkedHashMap<>();
+        plan.put("planDate",         LocalDate.now().toString());
+        plan.put("totalMinutes",      totalMins);
+        plan.put("sessions",          sessions);
+        plan.put("motivationMessage", motivationMsg);
+        plan.put("source",            "langgraph-agent");
+
+        log.info("[Planner] Agent plan for userId={}: {} sessions ({} SM-2 reviews + {} agent sessions)",
+            userId, sessions.size(), Math.min(2, dueToday.size()), agentSessions.size());
 
         return plan;
+    }
+
+    /**
+     * Notifies the Python agent of a session's completion so it can
+     * autonomously rebalance tomorrow's plan if needed.
+     * Call from markSessionComplete() after updating the daily_plans table.
+     */
+    @Async
+    @SuppressWarnings("unchecked")
+    public void notifyAgentOfProgress(UUID userId, String subject, String topicName,
+                                      double completionPct) {
+        if (!plannerAgentEnabled) return;
+        try {
+            UserContext ctx = contextRepo.findByUserId(userId).orElse(null);
+            LocalDate startDate = ctx != null && ctx.getCreatedAt() != null
+                ? ctx.getCreatedAt().toLocalDate() : LocalDate.now();
+            long daysSince = ChronoUnit.DAYS.between(startDate, LocalDate.now());
+            int week = (int)(daysSince / 7) + 1;
+            int day  = (int)(daysSince % 7) + 1;
+
+            Map<String, Object> body = new LinkedHashMap<>();
+            body.put("user_id",      userId.toString());
+            body.put("current_week", week);
+            body.put("current_day",  day);
+            Map<String, Double> progressMap = new LinkedHashMap<>();
+            progressMap.put(subject + "::" + topicName, completionPct);
+            body.put("progress_map", progressMap);
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            ResponseEntity<Map> resp = restTemplate.postForEntity(
+                plannerAgentUrl + "/track-progress",
+                new HttpEntity<>(body, headers), Map.class);
+
+            if (resp.getBody() != null && Boolean.TRUE.equals(resp.getBody().get("was_rebalanced"))) {
+                List<Map<?,?>> catchUp = (List<Map<?,?>>) resp.getBody().get("catch_up_sessions_added");
+                int added = catchUp != null ? catchUp.size() : 0;
+                log.info("[Planner] AUTONOMOUS REBALANCING: {} catch-up sessions added for userId={}",
+                    added, userId);
+
+                // Invalidate tomorrow's cached plan so it picks up the new sessions
+                LocalDate tomorrow = LocalDate.now().plusDays(1);
+                jdbc.update("DELETE FROM daily_plans WHERE user_id = ? AND plan_date = ?",
+                    userId, tomorrow);
+
+                // Notify student
+                notificationService.createNotification(userId, "ai_insight",
+                    "Study plan updated automatically",
+                    added + " catch-up session" + (added == 1 ? "" : "s") +
+                    " added to tomorrow's plan based on today's progress.",
+                    "/planner");
+            }
+        } catch (Exception e) {
+            log.warn("[Planner] Agent progress notify failed (non-fatal): {}", e.getMessage());
+        }
     }
 
     /**

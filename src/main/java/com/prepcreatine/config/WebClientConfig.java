@@ -1,10 +1,12 @@
 package com.prepcreatine.config;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.web.client.RestTemplateBuilder;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.web.client.RestTemplate;
 import org.springframework.web.reactive.function.client.WebClient;
 
 import java.time.Duration;
@@ -74,5 +76,19 @@ public class WebClientConfig {
             .codecs(configurer -> configurer.defaultCodecs()
                 .maxInMemorySize(512 * 1024)) // 500KB limit (SSRF protection)
             .build();
+    }
+
+    /**
+     * RestTemplate for synchronous calls to the Python LangGraph planner agent.
+     * Uses a long read timeout because /generate-plan calls the Groq LLM (~15-40s).
+     * Uses SimpleClientHttpRequestFactory for broad Spring Boot 3.x compatibility.
+     */
+    @Bean
+    public RestTemplate restTemplate() {
+        org.springframework.http.client.SimpleClientHttpRequestFactory factory =
+            new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(10_000);  // 10 seconds
+        factory.setReadTimeout(60_000);     // 60 seconds (plan generation takes ~20-40s)
+        return new RestTemplate(factory);
     }
 }
