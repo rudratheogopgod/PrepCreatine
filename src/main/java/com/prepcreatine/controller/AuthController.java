@@ -11,22 +11,17 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+
 import java.util.Map;
 import java.util.UUID;
 
 /**
  * Authentication endpoints per BSDD §8.
- *
- * POST /api/auth/signup
- * POST /api/auth/login
- * POST /api/auth/refresh
- * POST /api/auth/verify-email
- * POST /api/auth/resend-verification
- * POST /api/auth/forgot-password
- * POST /api/auth/reset-password
- * PUT  /api/me/password
+ * Disabled in demo mode — DemoAuthController takes over instead.
  */
 @RestController
+@ConditionalOnProperty(name = "app.demo-mode", havingValue = "false", matchIfMissing = true)
 public class AuthController {
 
     private final AuthService authService;
@@ -89,8 +84,10 @@ public class AuthController {
         return ResponseEntity.ok(Map.of("message", "Password changed successfully."));
     }
 
-    /** POST /api/auth/logout — clears the security context; JWT is stateless so
-     *  the client simply discards the token after this call. */
+    /**
+     * POST /api/auth/logout — clears the security context; JWT is stateless so
+     * the client simply discards the token after this call.
+     */
     @PostMapping("/api/auth/logout")
     public ResponseEntity<Map<String, String>> logout() {
         SecurityContextHolder.clearContext();

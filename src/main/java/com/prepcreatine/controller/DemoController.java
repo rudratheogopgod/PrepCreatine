@@ -10,18 +10,15 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 import java.util.UUID;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 /**
  * DemoController — demo mode management endpoints.
- *
- * GET  /api/demo/status  — returns demo mode info (for the demo banner)
- * POST /api/demo/reset   — resets the current demo user's data back to defaults
- *
- * These endpoints are always accessible (demo user or real user).
- * POST /api/demo/reset only clears the current user's progress data.
+ * Disabled in demo mode — com.prepcreatine.demo.DemoController takes over.
  */
 @RestController
 @RequestMapping("/api/demo")
+@ConditionalOnProperty(name = "app.demo-mode", havingValue = "false", matchIfMissing = true)
 public class DemoController {
 
     private static final Logger log = LoggerFactory.getLogger(DemoController.class);

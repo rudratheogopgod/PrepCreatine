@@ -153,7 +153,7 @@ The chapter emphasizes practical applications in heat engines and refrigerators 
                     <h2 style={{ fontSize: 15, fontFamily: '"Plus Jakarta Sans",sans-serif', fontWeight: 800, color: C.onSurface, margin: 0 }}>AI Summary</h2>
                   </div>
                   {isLoading ? (
-                    [1,2,3].map(i => <div key={i} style={{ height: 16, background: C.surfaceLow, borderRadius: 6, marginBottom: 8, width: `${70 + i * 10}%`, animation: 'pulse 1.5s ease-in-out infinite' }} />)
+                    [1, 2, 3].map(i => <div key={i} style={{ height: 16, background: C.surfaceLow, borderRadius: 6, marginBottom: 8, width: `${70 + i * 10}%`, animation: 'pulse 1.5s ease-in-out infinite' }} />)
                   ) : (
                     <p style={{ fontSize: 14, fontFamily: 'Manrope,sans-serif', color: C.onSurface, lineHeight: 1.8, margin: 0, whiteSpace: 'pre-line' }}>
                       {source?.studyGuide?.summary}
@@ -167,7 +167,7 @@ The chapter emphasizes practical applications in heat engines and refrigerators 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                     {source?.studyGuide?.questions.map((q, i) => (
                       <div key={i} style={{ background: C.surfaceLow, borderRadius: 12, padding: '12px 16px', display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-                        <span style={{ fontSize: 12, fontFamily: '"Plus Jakarta Sans",sans-serif', fontWeight: 800, color: C.primary, minWidth: 20 }}>Q{i+1}</span>
+                        <span style={{ fontSize: 12, fontFamily: '"Plus Jakarta Sans",sans-serif', fontWeight: 800, color: C.primary, minWidth: 20 }}>Q{i + 1}</span>
                         <p style={{ fontSize: 13, fontFamily: 'Manrope,sans-serif', color: C.onSurface, margin: 0, lineHeight: 1.6, flex: 1 }}>{q}</p>
                         <CopyButton text={q} />
                       </div>

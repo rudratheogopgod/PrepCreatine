@@ -15,14 +15,14 @@ public class GeminiProperties {
     /** Gemini API key. Loaded from GEMINI_API_KEY env var. */
     private String apiKey;
 
-    /** Model to use for chat/generation. Default: gemini-2.0-flash. */
-    private String model = "gemini-2.0-flash";
+    /** Model to use for chat/generation. Default: llama-3.3-70b-versatile (Groq). */
+    private String model = "llama-3.3-70b-versatile";
 
-    /** Max output tokens per request. Default 8192. */
-    private int maxOutputTokens = 8192;
+    /** Max output tokens per request. Default 4096. */
+    private int maxOutputTokens = 4096;
 
-    /** Base URL for Gemini REST API. */
-    private String baseUrl = "https://generativelanguage.googleapis.com";
+    /** Base URL for Groq OpenAI-compatible REST API. */
+    private String baseUrl = "https://api.groq.com/openai";
 
     public String getApiKey() { return apiKey; }
     public void setApiKey(String apiKey) { this.apiKey = apiKey; }

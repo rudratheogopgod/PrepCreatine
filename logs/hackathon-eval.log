@@ -1,0 +1,383 @@
+01:17:47 | INFO  | ─────────────────────────────────────────
+01:17:47 | INFO  | ✅ [STARTUP] PrepCreatine backend is READY ✓
+01:17:47 | INFO  | 📊 [STARTUP] Demo mode: DISABLED
+01:17:47 | INFO  | 📊 [STARTUP] Spring profile: default
+01:17:47 | INFO  | 📊 [STARTUP] Gemini API key configured: NO ⚠️
+01:17:47 | INFO  | 📊 [STARTUP] YouTube API key configured: NO ⚠️
+01:17:47 | INFO  | ─────────────────────────────────────────
+01:17:50 | INFO  | ─────────────────────────────────────────
+01:17:50 | INFO  | ✅ [SELF-TEST] DB connected: 0 users in DB ✓ ✓
+01:17:50 | WARN  | ❌ [SELF-TEST] Demo user NOT found — seeder may have failed ✗
+01:17:50 | WARN  | ❌ [SELF-TEST] SM-2 review queue has only 0 topics — expected 5+ ✗
+01:17:50 | WARN  | ❌ [SELF-TEST] Daily plan NOT seeded for today — first load will call Gemini ✗
+01:17:50 | WARN  | ❌ [SELF-TEST] No in-progress drill sessions found — expected 2+ ✗
+01:17:50 | WARN  | ❌ [SELF-TEST] NCERT corpus has only 0 sources — expected 5+ ✗
+01:17:50 | WARN  | ❌ [SELF-TEST] Question bank has only 0 questions — expected 6+ ✗
+01:17:50 | WARN  | ❌ [SELF-TEST] Only 0 concept nodes — expected 10+ ✗
+01:17:50 | WARN  | ❌ [SELF-TEST] GEMINI_API_KEY is NOT set — AI features will fail ✗
+01:17:50 | WARN  | ❌ [SELF-TEST] Learner profile NOT seeded — /api/analytics/agent-insights will be empty ✗
+01:17:50 | WARN  | ❌ [SELF-TEST] 1/10 tests passed — 9 failure(s), check logs above ✗
+01:17:50 | INFO  | ─────────────────────────────────────────
+01:37:37 | INFO  | ─────────────────────────────────────────
+01:37:37 | INFO  | ✅ [STARTUP] PrepCreatine backend is READY ✓
+01:37:37 | INFO  | 📊 [STARTUP] Demo mode: DISABLED
+01:37:37 | INFO  | 📊 [STARTUP] Spring profile: default
+01:37:37 | INFO  | 📊 [STARTUP] Gemini API key configured: NO ⚠️
+01:37:37 | INFO  | 📊 [STARTUP] YouTube API key configured: NO ⚠️
+01:37:37 | INFO  | ─────────────────────────────────────────
+01:37:40 | INFO  | ─────────────────────────────────────────
+01:37:40 | INFO  | ✅ [SELF-TEST] DB connected: 0 users in DB ✓ ✓
+01:37:40 | WARN  | ❌ [SELF-TEST] Demo user NOT found — seeder may have failed ✗
+01:37:40 | WARN  | ❌ [SELF-TEST] SM-2 review queue has only 0 topics — expected 5+ ✗
+01:37:40 | WARN  | ❌ [SELF-TEST] Daily plan NOT seeded for today — first load will call Gemini ✗
+01:37:40 | WARN  | ❌ [SELF-TEST] No in-progress drill sessions found — expected 2+ ✗
+01:37:40 | INFO  | ✅ [SELF-TEST] NCERT corpus: 15 sources seeded ✓ (Module 4 RAG ready) ✓
+01:37:40 | WARN  | ❌ [SELF-TEST] Question bank has only 0 questions — expected 6+ ✗
+01:37:40 | WARN  | ❌ [SELF-TEST] Only 0 concept nodes — expected 10+ ✗
+01:37:40 | WARN  | ❌ [SELF-TEST] GEMINI_API_KEY is NOT set — AI features will fail ✗
+01:37:40 | WARN  | ❌ [SELF-TEST] Learner profile NOT seeded — /api/analytics/agent-insights will be empty ✗
+01:37:40 | WARN  | ❌ [SELF-TEST] 2/10 tests passed — 8 failure(s), check logs above ✗
+01:37:40 | INFO  | ─────────────────────────────────────────
+02:26:55 | INFO  | ─────────────────────────────────────────
+02:26:55 | INFO  | ✅ [STARTUP] PrepCreatine backend is READY ✓
+02:26:55 | INFO  | 📊 [STARTUP] Demo mode: DISABLED
+02:26:55 | INFO  | 📊 [STARTUP] Spring profile: default
+02:26:55 | INFO  | 📊 [STARTUP] Gemini API key configured: NO ⚠️
+02:26:55 | INFO  | 📊 [STARTUP] YouTube API key configured: NO ⚠️
+02:26:55 | INFO  | ─────────────────────────────────────────
+02:26:58 | INFO  | ─────────────────────────────────────────
+02:26:58 | INFO  | ✅ [SELF-TEST] DB connected: 0 users in DB ✓ ✓
+02:26:58 | WARN  | ❌ [SELF-TEST] Demo user NOT found — seeder may have failed ✗
+02:26:58 | WARN  | ❌ [SELF-TEST] SM-2 review queue has only 0 topics — expected 5+ ✗
+02:26:58 | WARN  | ❌ [SELF-TEST] Daily plan NOT seeded for today — first load will call Gemini ✗
+02:26:58 | WARN  | ❌ [SELF-TEST] No in-progress drill sessions found — expected 2+ ✗
+02:26:58 | INFO  | ✅ [SELF-TEST] NCERT corpus: 15 sources seeded ✓ (Module 4 RAG ready) ✓
+02:26:58 | WARN  | ❌ [SELF-TEST] Question bank has only 0 questions — expected 6+ ✗
+02:26:58 | WARN  | ❌ [SELF-TEST] Only 0 concept nodes — expected 10+ ✗
+02:26:58 | WARN  | ❌ [SELF-TEST] GEMINI_API_KEY is NOT set — AI features will fail ✗
+02:26:58 | WARN  | ❌ [SELF-TEST] Learner profile NOT seeded — /api/analytics/agent-insights will be empty ✗
+02:26:58 | WARN  | ❌ [SELF-TEST] 2/10 tests passed — 8 failure(s), check logs above ✗
+02:26:58 | INFO  | ─────────────────────────────────────────
+02:31:57 | INFO  | ─────────────────────────────────────────
+02:31:57 | INFO  | ✅ [STARTUP] PrepCreatine backend is READY ✓
+02:31:57 | INFO  | 📊 [STARTUP] Demo mode: DISABLED
+02:31:57 | INFO  | 📊 [STARTUP] Spring profile: default
+02:31:57 | INFO  | 📊 [STARTUP] Gemini API key configured: NO ⚠️
+02:31:57 | INFO  | 📊 [STARTUP] YouTube API key configured: NO ⚠️
+02:31:57 | INFO  | ─────────────────────────────────────────
+02:32:00 | INFO  | ─────────────────────────────────────────
+02:32:00 | INFO  | ✅ [SELF-TEST] DB connected: 0 users in DB ✓ ✓
+02:32:00 | WARN  | ❌ [SELF-TEST] Demo user NOT found — seeder may have failed ✗
+02:32:00 | WARN  | ❌ [SELF-TEST] SM-2 review queue has only 0 topics — expected 5+ ✗
+02:32:00 | WARN  | ❌ [SELF-TEST] Daily plan NOT seeded for today — first load will call Gemini ✗
+02:32:00 | WARN  | ❌ [SELF-TEST] No in-progress drill sessions found — expected 2+ ✗
+02:32:00 | INFO  | ✅ [SELF-TEST] NCERT corpus: 15 sources seeded ✓ (Module 4 RAG ready) ✓
+02:32:00 | WARN  | ❌ [SELF-TEST] Question bank has only 0 questions — expected 6+ ✗
+02:32:00 | WARN  | ❌ [SELF-TEST] Only 0 concept nodes — expected 10+ ✗
+02:32:00 | WARN  | ❌ [SELF-TEST] GEMINI_API_KEY is NOT set — AI features will fail ✗
+02:32:00 | WARN  | ❌ [SELF-TEST] Learner profile NOT seeded — /api/analytics/agent-insights will be empty ✗
+02:32:00 | WARN  | ❌ [SELF-TEST] 2/10 tests passed — 8 failure(s), check logs above ✗
+02:32:00 | INFO  | ─────────────────────────────────────────
+02:33:31 | INFO  | ─────────────────────────────────────────
+02:33:31 | INFO  | ✅ [STARTUP] PrepCreatine backend is READY ✓
+02:33:31 | INFO  | 📊 [STARTUP] Demo mode: ENABLED
+02:33:31 | INFO  | 📊 [STARTUP] Spring profile: default
+02:33:31 | INFO  | 📊 [STARTUP] Gemini API key configured: NO ⚠️
+02:33:31 | INFO  | 📊 [STARTUP] YouTube API key configured: NO ⚠️
+02:33:31 | INFO  | ─────────────────────────────────────────
+02:33:34 | INFO  | ─────────────────────────────────────────
+02:33:34 | INFO  | ✅ [SELF-TEST] DB connected: 2 users in DB ✓ ✓
+02:33:34 | INFO  | ✅ [SELF-TEST] Demo user 'Arjun Sharma' exists in DB ✓ ✓
+02:33:34 | WARN  | ❌ [SELF-TEST] SM-2 review queue has only 0 topics — expected 5+ ✗
+02:33:34 | INFO  | ✅ [SELF-TEST] Daily plan pre-seeded for today ✓ (Module 2 ready — no Gemini call on first load) ✓
+02:33:34 | WARN  | ❌ [SELF-TEST] No in-progress drill sessions found — expected 2+ ✗
+02:33:34 | INFO  | ✅ [SELF-TEST] NCERT corpus: 15 sources seeded ✓ (Module 4 RAG ready) ✓
+02:33:34 | WARN  | ❌ [SELF-TEST] Question bank has only 0 questions — expected 6+ ✗
+02:33:34 | INFO  | ✅ [SELF-TEST] Knowledge graph: 15 concept nodes ✓ ✓
+02:33:34 | WARN  | ❌ [SELF-TEST] GEMINI_API_KEY is NOT set — AI features will fail ✗
+02:33:34 | INFO  | ✅ [SELF-TEST] Learner profile seeded — AI agent has behavioral data ✓ ✓
+02:33:34 | WARN  | ❌ [SELF-TEST] 6/10 tests passed — 4 failure(s), check logs above ✗
+02:33:34 | INFO  | ─────────────────────────────────────────
+02:47:03 | INFO  | ─────────────────────────────────────────
+02:47:03 | INFO  | ✅ [STARTUP] PrepCreatine backend is READY ✓
+02:47:03 | INFO  | 📊 [STARTUP] Demo mode: ENABLED
+02:47:03 | INFO  | 📊 [STARTUP] Spring profile: default
+02:47:03 | INFO  | 📊 [STARTUP] Gemini API key configured: NO ⚠️
+02:47:03 | INFO  | 📊 [STARTUP] YouTube API key configured: NO ⚠️
+02:47:03 | INFO  | ─────────────────────────────────────────
+02:47:06 | INFO  | ─────────────────────────────────────────
+02:47:06 | INFO  | ✅ [SELF-TEST] DB connected: 2 users in DB ✓ ✓
+02:47:06 | INFO  | ✅ [SELF-TEST] Demo user 'Arjun Sharma' exists in DB ✓ ✓
+02:47:06 | WARN  | ❌ [SELF-TEST] SM-2 review queue has only 0 topics — expected 5+ ✗
+02:47:06 | INFO  | ✅ [SELF-TEST] Daily plan pre-seeded for today ✓ (Module 2 ready — no Gemini call on first load) ✓
+02:47:06 | WARN  | ❌ [SELF-TEST] No in-progress drill sessions found — expected 2+ ✗
+02:47:06 | INFO  | ✅ [SELF-TEST] NCERT corpus: 15 sources seeded ✓ (Module 4 RAG ready) ✓
+02:47:06 | WARN  | ❌ [SELF-TEST] Question bank has only 0 questions — expected 6+ ✗
+02:47:06 | INFO  | ✅ [SELF-TEST] Knowledge graph: 15 concept nodes ✓ ✓
+02:47:06 | WARN  | ❌ [SELF-TEST] GEMINI_API_KEY is NOT set — AI features will fail ✗
+02:47:06 | INFO  | ✅ [SELF-TEST] Learner profile seeded — AI agent has behavioral data ✓ ✓
+02:47:06 | WARN  | ❌ [SELF-TEST] 6/10 tests passed — 4 failure(s), check logs above ✗
+02:47:06 | INFO  | ─────────────────────────────────────────
+02:53:32 | INFO  | ─────────────────────────────────────────
+02:53:32 | INFO  | ✅ [STARTUP] PrepCreatine backend is READY ✓
+02:53:32 | INFO  | 📊 [STARTUP] Demo mode: ENABLED
+02:53:32 | INFO  | 📊 [STARTUP] Spring profile: default
+02:53:32 | INFO  | 📊 [STARTUP] Gemini API key configured: NO ⚠️
+02:53:32 | INFO  | 📊 [STARTUP] YouTube API key configured: NO ⚠️
+02:53:32 | INFO  | ─────────────────────────────────────────
+02:53:35 | INFO  | ─────────────────────────────────────────
+02:53:35 | INFO  | ✅ [SELF-TEST] DB connected: 2 users in DB ✓ ✓
+02:53:35 | INFO  | ✅ [SELF-TEST] Demo user 'Arjun Sharma' exists in DB ✓ ✓
+02:53:35 | WARN  | ❌ [SELF-TEST] SM-2 review queue has only 0 topics — expected 5+ ✗
+02:53:35 | INFO  | ✅ [SELF-TEST] Daily plan pre-seeded for today ✓ (Module 2 ready — no Gemini call on first load) ✓
+02:53:35 | WARN  | ❌ [SELF-TEST] No in-progress drill sessions found — expected 2+ ✗
+02:53:35 | INFO  | ✅ [SELF-TEST] NCERT corpus: 15 sources seeded ✓ (Module 4 RAG ready) ✓
+02:53:35 | WARN  | ❌ [SELF-TEST] Question bank has only 0 questions — expected 6+ ✗
+02:53:35 | INFO  | ✅ [SELF-TEST] Knowledge graph: 15 concept nodes ✓ ✓
+02:53:35 | WARN  | ❌ [SELF-TEST] GEMINI_API_KEY is NOT set — AI features will fail ✗
+02:53:35 | INFO  | ✅ [SELF-TEST] Learner profile seeded — AI agent has behavioral data ✓ ✓
+02:53:35 | WARN  | ❌ [SELF-TEST] 6/10 tests passed — 4 failure(s), check logs above ✗
+02:53:35 | INFO  | ─────────────────────────────────────────
+04:00:08 | INFO  | ─────────────────────────────────────────
+04:00:08 | INFO  | ✅ [STARTUP] PrepCreatine backend is READY ✓
+04:00:08 | INFO  | 📊 [STARTUP] Demo mode: ENABLED
+04:00:08 | INFO  | 📊 [STARTUP] Spring profile: default
+04:00:08 | INFO  | 📊 [STARTUP] Gemini API key configured: NO ⚠️
+04:00:08 | INFO  | 📊 [STARTUP] YouTube API key configured: NO ⚠️
+04:00:08 | INFO  | ─────────────────────────────────────────
+04:00:11 | INFO  | ─────────────────────────────────────────
+04:00:11 | INFO  | ✅ [SELF-TEST] DB connected: 2 users in DB ✓ ✓
+04:00:11 | INFO  | ✅ [SELF-TEST] Demo user 'Arjun Sharma' exists in DB ✓ ✓
+04:00:11 | WARN  | ❌ [SELF-TEST] SM-2 review queue has only 0 topics — expected 5+ ✗
+04:00:11 | INFO  | ✅ [SELF-TEST] Daily plan pre-seeded for today ✓ (Module 2 ready — no Gemini call on first load) ✓
+04:00:11 | WARN  | ❌ [SELF-TEST] No in-progress drill sessions found — expected 2+ ✗
+04:00:11 | INFO  | ✅ [SELF-TEST] NCERT corpus: 15 sources seeded ✓ (Module 4 RAG ready) ✓
+04:00:11 | WARN  | ❌ [SELF-TEST] Question bank has only 0 questions — expected 6+ ✗
+04:00:11 | INFO  | ✅ [SELF-TEST] Knowledge graph: 15 concept nodes ✓ ✓
+04:00:11 | WARN  | ❌ [SELF-TEST] GEMINI_API_KEY is NOT set — AI features will fail ✗
+04:00:11 | INFO  | ✅ [SELF-TEST] Learner profile seeded — AI agent has behavioral data ✓ ✓
+04:00:11 | WARN  | ❌ [SELF-TEST] 6/10 tests passed — 4 failure(s), check logs above ✗
+04:00:11 | INFO  | ─────────────────────────────────────────
+04:01:14 | WARN  | ❌ [GROQ] API call failed: status=404 ✗
+04:01:14 | WARN  | ❌ [GROQ] Call failed after 293ms: Groq API error 404: {"error":{"message":"Unknown request URL: POST /v1/chat/completions. Please check the URL for typos, or see the docs at https://console.groq.com/docs/","type":"invalid_request_error","code":"unknown_url"}}
+ ✗
+04:05:40 | INFO  | ─────────────────────────────────────────
+04:05:40 | INFO  | ✅ [STARTUP] PrepCreatine backend is READY ✓
+04:05:40 | INFO  | 📊 [STARTUP] Demo mode: ENABLED
+04:05:40 | INFO  | 📊 [STARTUP] Spring profile: default
+04:05:40 | INFO  | 📊 [STARTUP] Gemini API key configured: NO ⚠️
+04:05:40 | INFO  | 📊 [STARTUP] YouTube API key configured: NO ⚠️
+04:05:40 | INFO  | ─────────────────────────────────────────
+04:05:43 | INFO  | ─────────────────────────────────────────
+04:05:43 | INFO  | ✅ [SELF-TEST] DB connected: 2 users in DB ✓ ✓
+04:05:43 | INFO  | ✅ [SELF-TEST] Demo user 'Arjun Sharma' exists in DB ✓ ✓
+04:05:43 | WARN  | ❌ [SELF-TEST] SM-2 review queue has only 0 topics — expected 5+ ✗
+04:05:43 | INFO  | ✅ [SELF-TEST] Daily plan pre-seeded for today ✓ (Module 2 ready — no Gemini call on first load) ✓
+04:05:43 | WARN  | ❌ [SELF-TEST] No in-progress drill sessions found — expected 2+ ✗
+04:05:43 | INFO  | ✅ [SELF-TEST] NCERT corpus: 15 sources seeded ✓ (Module 4 RAG ready) ✓
+04:05:43 | WARN  | ❌ [SELF-TEST] Question bank has only 0 questions — expected 6+ ✗
+04:05:43 | INFO  | ✅ [SELF-TEST] Knowledge graph: 15 concept nodes ✓ ✓
+04:05:43 | WARN  | ❌ [SELF-TEST] GEMINI_API_KEY is NOT set — AI features will fail ✗
+04:05:43 | INFO  | ✅ [SELF-TEST] Learner profile seeded — AI agent has behavioral data ✓ ✓
+04:05:43 | WARN  | ❌ [SELF-TEST] 6/10 tests passed — 4 failure(s), check logs above ✗
+04:05:43 | INFO  | ─────────────────────────────────────────
+04:05:54 | INFO  | 📊 [GROQ] Response time: 4254ms
+04:05:54 | INFO  | 📊 [GROQ] Response length: 4136 chars
+06:24:45 | INFO  | ─────────────────────────────────────────
+06:24:45 | INFO  | ✅ [STARTUP] PrepCreatine backend is READY ✓
+06:24:45 | INFO  | 📊 [STARTUP] Demo mode: ENABLED
+06:24:45 | INFO  | 📊 [STARTUP] Spring profile: default
+06:24:45 | INFO  | 📊 [STARTUP] Gemini API key configured: NO ⚠️
+06:24:45 | INFO  | 📊 [STARTUP] YouTube API key configured: NO ⚠️
+06:24:45 | INFO  | ─────────────────────────────────────────
+06:24:45 | INFO  | ─────────────────────────────────────────
+06:24:45 | INFO  | 🤖 [LEARNER-AGENT] AGENT ACTION: Analyzing learner profile for userId=00000000-0000-0000-0000-000000000001
+06:24:45 | INFO  | 📊 [LEARNER-AGENT] Struggle indicator: 52%
+06:24:45 | INFO  | 📊 [LEARNER-AGENT] Consistency score: 0%
+06:24:46 | INFO  | 📊 [GROQ] Response time: 1640ms
+06:24:46 | INFO  | 📊 [GROQ] Response length: 948 chars
+06:24:46 | INFO  | ✅ [LEARNER-AGENT] Analysis complete: weakness='The student takes significantly longer to answer questions they get wrong, averaging 189 seconds, indicating a struggle with problem-solving and time management, particularly with concepts that require careful analysis and decision-making.' ✓
+06:24:46 | INFO  | 📊 [LEARNER-AGENT] Recommended mode: in_depth
+06:24:46 | INFO  | 📊 [LEARNER-AGENT] Learning velocity: 40%
+06:24:46 | INFO  | ─────────────────────────────────────────
+06:24:48 | INFO  | ─────────────────────────────────────────
+06:24:48 | INFO  | ✅ [SELF-TEST] DB connected: 2 users in DB ✓ ✓
+06:24:48 | INFO  | ✅ [SELF-TEST] Demo user 'Arjun Sharma' exists in DB ✓ ✓
+06:24:48 | WARN  | ❌ [SELF-TEST] SM-2 review queue has only 0 topics — expected 5+ ✗
+06:24:48 | INFO  | ✅ [SELF-TEST] Daily plan pre-seeded for today ✓ (Module 2 ready — no Gemini call on first load) ✓
+06:24:48 | WARN  | ❌ [SELF-TEST] No in-progress drill sessions found — expected 2+ ✗
+06:24:48 | INFO  | ✅ [SELF-TEST] NCERT corpus: 15 sources seeded ✓ (Module 4 RAG ready) ✓
+06:24:48 | WARN  | ❌ [SELF-TEST] Question bank has only 0 questions — expected 6+ ✗
+06:24:48 | INFO  | ✅ [SELF-TEST] Knowledge graph: 15 concept nodes ✓ ✓
+06:24:48 | WARN  | ❌ [SELF-TEST] GEMINI_API_KEY is NOT set — AI features will fail ✗
+06:24:48 | INFO  | ✅ [SELF-TEST] Learner profile seeded — AI agent has behavioral data ✓ ✓
+06:24:48 | WARN  | ❌ [SELF-TEST] 6/10 tests passed — 4 failure(s), check logs above ✗
+06:24:48 | INFO  | ─────────────────────────────────────────
+06:27:31 | INFO  | 📊 [GROQ] Response time: 1894ms
+06:27:31 | INFO  | 📊 [GROQ] Response length: 4026 chars
+06:27:49 | INFO  | 📊 [GROQ] Response time: 4634ms
+06:27:49 | INFO  | 📊 [GROQ] Response length: 5562 chars
+06:42:16 | INFO  | ─────────────────────────────────────────
+06:42:16 | INFO  | ✅ [STARTUP] PrepCreatine backend is READY ✓
+06:42:16 | INFO  | 📊 [STARTUP] Demo mode: ENABLED
+06:42:16 | INFO  | 📊 [STARTUP] Spring profile: default
+06:42:16 | INFO  | 📊 [STARTUP] Gemini API key configured: NO ⚠️
+06:42:16 | INFO  | 📊 [STARTUP] YouTube API key configured: NO ⚠️
+06:42:16 | INFO  | ─────────────────────────────────────────
+06:42:19 | INFO  | ─────────────────────────────────────────
+06:42:19 | INFO  | ✅ [SELF-TEST] DB connected: 2 users in DB ✓ ✓
+06:42:19 | INFO  | ✅ [SELF-TEST] Demo user 'Arjun Sharma' exists in DB ✓ ✓
+06:42:19 | WARN  | ❌ [SELF-TEST] SM-2 review queue has only 0 topics — expected 5+ ✗
+06:42:19 | INFO  | ✅ [SELF-TEST] Daily plan pre-seeded for today ✓ (Module 2 ready — no Gemini call on first load) ✓
+06:42:19 | WARN  | ❌ [SELF-TEST] No in-progress drill sessions found — expected 2+ ✗
+06:42:19 | INFO  | ✅ [SELF-TEST] NCERT corpus: 15 sources seeded ✓ (Module 4 RAG ready) ✓
+06:42:19 | WARN  | ❌ [SELF-TEST] Question bank has only 0 questions — expected 6+ ✗
+06:42:19 | INFO  | ✅ [SELF-TEST] Knowledge graph: 15 concept nodes ✓ ✓
+06:42:19 | WARN  | ❌ [SELF-TEST] GEMINI_API_KEY is NOT set — AI features will fail ✗
+06:42:19 | INFO  | ✅ [SELF-TEST] Learner profile seeded — AI agent has behavioral data ✓ ✓
+06:42:19 | WARN  | ❌ [SELF-TEST] 6/10 tests passed — 4 failure(s), check logs above ✗
+06:42:19 | INFO  | ─────────────────────────────────────────
+06:43:02 | INFO  | 📊 [GROQ] Response time: 3015ms
+06:43:02 | INFO  | 📊 [GROQ] Response length: 5256 chars
+06:44:38 | INFO  | 📊 [GROQ] Response time: 2468ms
+06:44:38 | INFO  | 📊 [GROQ] Response length: 5027 chars
+06:45:24 | INFO  | 📊 [GROQ] Response time: 4401ms
+06:45:24 | INFO  | 📊 [GROQ] Response length: 5244 chars
+06:53:29 | INFO  | 📊 [GROQ] Response time: 715ms
+06:53:29 | INFO  | 📊 [GROQ] Response length: 1108 chars
+06:53:30 | INFO  | 📊 [GROQ] Response time: 686ms
+06:53:30 | INFO  | 📊 [GROQ] Response length: 1108 chars
+07:12:07 | INFO  | ─────────────────────────────────────────
+07:12:07 | INFO  | ✅ [STARTUP] PrepCreatine backend is READY ✓
+07:12:07 | INFO  | 📊 [STARTUP] Demo mode: ENABLED
+07:12:07 | INFO  | 📊 [STARTUP] Spring profile: default
+07:12:07 | INFO  | 📊 [STARTUP] Gemini API key configured: NO ⚠️
+07:12:07 | INFO  | 📊 [STARTUP] YouTube API key configured: NO ⚠️
+07:12:07 | INFO  | ─────────────────────────────────────────
+07:12:10 | INFO  | ─────────────────────────────────────────
+07:12:11 | INFO  | ✅ [SELF-TEST] DB connected: 2 users in DB ✓ ✓
+07:12:11 | INFO  | ✅ [SELF-TEST] Demo user 'Arjun Sharma' exists in DB ✓ ✓
+07:12:11 | WARN  | ❌ [SELF-TEST] SM-2 review queue has only 0 topics — expected 5+ ✗
+07:12:11 | INFO  | ✅ [SELF-TEST] Daily plan pre-seeded for today ✓ (Module 2 ready — no Gemini call on first load) ✓
+07:12:11 | INFO  | ✅ [SELF-TEST] Targeted drills ready: 3 in-progress sessions ✓ (Module 3 ready) ✓
+07:12:11 | INFO  | ✅ [SELF-TEST] NCERT corpus: 15 sources seeded ✓ (Module 4 RAG ready) ✓
+07:12:11 | INFO  | ✅ [SELF-TEST] Question bank: 30 questions ✓ (tests can start without AI gen) ✓
+07:12:11 | INFO  | ✅ [SELF-TEST] Knowledge graph: 15 concept nodes ✓ ✓
+07:12:11 | WARN  | ❌ [SELF-TEST] GEMINI_API_KEY is NOT set — AI features will fail ✗
+07:12:11 | INFO  | ✅ [SELF-TEST] Learner profile seeded — AI agent has behavioral data ✓ ✓
+07:12:11 | WARN  | ❌ [SELF-TEST] 8/10 tests passed — 2 failure(s), check logs above ✗
+07:12:11 | INFO  | ─────────────────────────────────────────
+07:53:07 | INFO  | 📊 [GROQ] Response time: 4603ms
+07:53:07 | INFO  | 📊 [GROQ] Response length: 8271 chars
+07:53:42 | INFO  | 📊 [GROQ] Response time: 3793ms
+07:53:42 | INFO  | 📊 [GROQ] Response length: 8354 chars
+08:00:57 | INFO  | ─────────────────────────────────────────
+08:00:57 | INFO  | ✅ [STARTUP] PrepCreatine backend is READY ✓
+08:00:57 | INFO  | 📊 [STARTUP] Demo mode: ENABLED
+08:00:57 | INFO  | 📊 [STARTUP] Spring profile: default
+08:00:57 | INFO  | 📊 [STARTUP] Gemini API key configured: NO ⚠️
+08:00:57 | INFO  | 📊 [STARTUP] YouTube API key configured: NO ⚠️
+08:00:57 | INFO  | ─────────────────────────────────────────
+08:01:00 | INFO  | ─────────────────────────────────────────
+08:01:00 | INFO  | ✅ [SELF-TEST] DB connected: 2 users in DB ✓ ✓
+08:01:00 | INFO  | ✅ [SELF-TEST] Demo user 'Arjun Sharma' exists in DB ✓ ✓
+08:01:00 | WARN  | ❌ [SELF-TEST] SM-2 review queue has only 0 topics — expected 5+ ✗
+08:01:00 | INFO  | ✅ [SELF-TEST] Daily plan pre-seeded for today ✓ (Module 2 ready — no Gemini call on first load) ✓
+08:01:00 | INFO  | ✅ [SELF-TEST] Targeted drills ready: 5 in-progress sessions ✓ (Module 3 ready) ✓
+08:01:00 | INFO  | ✅ [SELF-TEST] NCERT corpus: 15 sources seeded ✓ (Module 4 RAG ready) ✓
+08:01:00 | INFO  | ✅ [SELF-TEST] Question bank: 60 questions ✓ (tests can start without AI gen) ✓
+08:01:00 | INFO  | ✅ [SELF-TEST] Knowledge graph: 15 concept nodes ✓ ✓
+08:01:00 | WARN  | ❌ [SELF-TEST] GEMINI_API_KEY is NOT set — AI features will fail ✗
+08:01:00 | INFO  | ✅ [SELF-TEST] Learner profile seeded — AI agent has behavioral data ✓ ✓
+08:01:00 | WARN  | ❌ [SELF-TEST] 8/10 tests passed — 2 failure(s), check logs above ✗
+08:01:00 | INFO  | ─────────────────────────────────────────
+08:11:49 | INFO  | ─────────────────────────────────────────
+08:11:49 | INFO  | ✅ [STARTUP] PrepCreatine backend is READY ✓
+08:11:49 | INFO  | 📊 [STARTUP] Demo mode: DISABLED
+08:11:49 | INFO  | 📊 [STARTUP] Spring profile: default
+08:11:49 | INFO  | 📊 [STARTUP] Gemini API key configured: NO ⚠️
+08:11:49 | INFO  | 📊 [STARTUP] YouTube API key configured: NO ⚠️
+08:11:49 | INFO  | ─────────────────────────────────────────
+08:11:52 | INFO  | ─────────────────────────────────────────
+08:11:52 | INFO  | ✅ [SELF-TEST] DB connected: 2 users in DB ✓ ✓
+08:11:52 | INFO  | ✅ [SELF-TEST] Demo user 'Arjun Sharma' exists in DB ✓ ✓
+08:11:52 | WARN  | ❌ [SELF-TEST] SM-2 review queue has only 0 topics — expected 5+ ✗
+08:11:52 | INFO  | ✅ [SELF-TEST] Daily plan pre-seeded for today ✓ (Module 2 ready — no Gemini call on first load) ✓
+08:11:52 | INFO  | ✅ [SELF-TEST] Targeted drills ready: 5 in-progress sessions ✓ (Module 3 ready) ✓
+08:11:52 | INFO  | ✅ [SELF-TEST] NCERT corpus: 15 sources seeded ✓ (Module 4 RAG ready) ✓
+08:11:52 | INFO  | ✅ [SELF-TEST] Question bank: 60 questions ✓ (tests can start without AI gen) ✓
+08:11:52 | INFO  | ✅ [SELF-TEST] Knowledge graph: 15 concept nodes ✓ ✓
+08:11:52 | WARN  | ❌ [SELF-TEST] GEMINI_API_KEY is NOT set — AI features will fail ✗
+08:11:52 | INFO  | ✅ [SELF-TEST] Learner profile seeded — AI agent has behavioral data ✓ ✓
+08:11:52 | WARN  | ❌ [SELF-TEST] 8/10 tests passed — 2 failure(s), check logs above ✗
+08:11:52 | INFO  | ─────────────────────────────────────────
+08:20:34 | INFO  | ─────────────────────────────────────────
+08:20:34 | INFO  | ✅ [STARTUP] PrepCreatine backend is READY ✓
+08:20:34 | INFO  | 📊 [STARTUP] Demo mode: ENABLED
+08:20:34 | INFO  | 📊 [STARTUP] Spring profile: default
+08:20:34 | INFO  | 📊 [STARTUP] Gemini API key configured: NO ⚠️
+08:20:34 | INFO  | 📊 [STARTUP] YouTube API key configured: NO ⚠️
+08:20:34 | INFO  | ─────────────────────────────────────────
+08:20:37 | INFO  | ─────────────────────────────────────────
+08:20:38 | INFO  | ✅ [SELF-TEST] DB connected: 2 users in DB ✓ ✓
+08:20:38 | INFO  | ✅ [SELF-TEST] Demo user 'Arjun Sharma' exists in DB ✓ ✓
+08:20:38 | WARN  | ❌ [SELF-TEST] SM-2 review queue has only 0 topics — expected 5+ ✗
+08:20:38 | INFO  | ✅ [SELF-TEST] Daily plan pre-seeded for today ✓ (Module 2 ready — no Gemini call on first load) ✓
+08:20:38 | INFO  | ✅ [SELF-TEST] Targeted drills ready: 5 in-progress sessions ✓ (Module 3 ready) ✓
+08:20:38 | INFO  | ✅ [SELF-TEST] NCERT corpus: 15 sources seeded ✓ (Module 4 RAG ready) ✓
+08:20:38 | INFO  | ✅ [SELF-TEST] Question bank: 60 questions ✓ (tests can start without AI gen) ✓
+08:20:38 | INFO  | ✅ [SELF-TEST] Knowledge graph: 15 concept nodes ✓ ✓
+08:20:38 | WARN  | ❌ [SELF-TEST] GEMINI_API_KEY is NOT set — AI features will fail ✗
+08:20:38 | INFO  | ✅ [SELF-TEST] Learner profile seeded — AI agent has behavioral data ✓ ✓
+08:20:38 | WARN  | ❌ [SELF-TEST] 8/10 tests passed — 2 failure(s), check logs above ✗
+08:20:38 | INFO  | ─────────────────────────────────────────
+08:21:12 | INFO  | ─────────────────────────────────────────
+08:21:12 | INFO  | 📊 [AI-AGENT] Weakness pattern: Struggles most with reaction mechanisms in Organic Chemistry (GOC) and definite integral evaluation; typically spends 3x as long on wrong answers, suggesting gaps in conceptual understanding rather than careless errors.
+08:21:12 | INFO  | 📊 [AI-AGENT] Strength pattern: Strong in Physics kinematics and coordinate geometry — consistently scores above 85% and solves problems in under 45 seconds.
+08:21:12 | INFO  | 📊 [AI-AGENT] Recommended mode: in_depth
+08:21:12 | INFO  | 📊 [AI-AGENT] Struggle indicator: 52%
+08:21:12 | INFO  | 📊 [AI-AGENT] Last analyzed at: 2026-03-23T02:20:35.125325Z
+08:21:12 | INFO  | ✅ [AI-AGENT] Agent insights returned — autonomous profiling is ACTIVE ✓ ✓
+08:21:12 | INFO  | ─────────────────────────────────────────
+08:34:57 | INFO  | ─────────────────────────────────────────
+08:34:57 | INFO  | ✅ [STARTUP] PrepCreatine backend is READY ✓
+08:34:57 | INFO  | 📊 [STARTUP] Demo mode: ENABLED
+08:34:57 | INFO  | 📊 [STARTUP] Spring profile: default
+08:34:57 | INFO  | 📊 [STARTUP] Gemini API key configured: NO ⚠️
+08:34:57 | INFO  | 📊 [STARTUP] YouTube API key configured: NO ⚠️
+08:34:57 | INFO  | ─────────────────────────────────────────
+08:35:00 | INFO  | ─────────────────────────────────────────
+08:35:00 | INFO  | ✅ [SELF-TEST] DB connected: 2 users in DB ✓ ✓
+08:35:00 | INFO  | ✅ [SELF-TEST] Demo user 'Arjun Sharma' exists in DB ✓ ✓
+08:35:00 | WARN  | ❌ [SELF-TEST] SM-2 review queue has only 0 topics — expected 5+ ✗
+08:35:00 | INFO  | ✅ [SELF-TEST] Daily plan pre-seeded for today ✓ (Module 2 ready — no Gemini call on first load) ✓
+08:35:00 | INFO  | ✅ [SELF-TEST] Targeted drills ready: 5 in-progress sessions ✓ (Module 3 ready) ✓
+08:35:00 | INFO  | ✅ [SELF-TEST] NCERT corpus: 15 sources seeded ✓ (Module 4 RAG ready) ✓
+08:35:00 | INFO  | ✅ [SELF-TEST] Question bank: 60 questions ✓ (tests can start without AI gen) ✓
+08:35:00 | INFO  | ✅ [SELF-TEST] Knowledge graph: 15 concept nodes ✓ ✓
+08:35:00 | WARN  | ❌ [SELF-TEST] GEMINI_API_KEY is NOT set — AI features will fail ✗
+08:35:00 | INFO  | ✅ [SELF-TEST] Learner profile seeded — AI agent has behavioral data ✓ ✓
+08:35:00 | WARN  | ❌ [SELF-TEST] 8/10 tests passed — 2 failure(s), check logs above ✗
+08:35:00 | INFO  | ─────────────────────────────────────────
+08:36:29 | INFO  | ─────────────────────────────────────────
+08:36:29 | INFO  | ✅ [STARTUP] PrepCreatine backend is READY ✓
+08:36:29 | INFO  | 📊 [STARTUP] Demo mode: ENABLED
+08:36:29 | INFO  | 📊 [STARTUP] Spring profile: default
+08:36:29 | INFO  | 📊 [STARTUP] Gemini API key configured: NO ⚠️
+08:36:29 | INFO  | 📊 [STARTUP] YouTube API key configured: NO ⚠️
+08:36:29 | INFO  | ─────────────────────────────────────────
+08:36:32 | INFO  | ─────────────────────────────────────────
+08:36:32 | INFO  | ✅ [SELF-TEST] DB connected: 2 users in DB ✓ ✓
+08:36:32 | INFO  | ✅ [SELF-TEST] Demo user 'Arjun Sharma' exists in DB ✓ ✓
+08:36:32 | WARN  | ❌ [SELF-TEST] SM-2 review queue has only 0 topics — expected 5+ ✗
+08:36:32 | INFO  | ✅ [SELF-TEST] Daily plan pre-seeded for today ✓ (Module 2 ready — no Gemini call on first load) ✓
+08:36:32 | INFO  | ✅ [SELF-TEST] Targeted drills ready: 5 in-progress sessions ✓ (Module 3 ready) ✓
+08:36:32 | INFO  | ✅ [SELF-TEST] NCERT corpus: 15 sources seeded ✓ (Module 4 RAG ready) ✓
+08:36:32 | INFO  | ✅ [SELF-TEST] Question bank: 60 questions ✓ (tests can start without AI gen) ✓
+08:36:32 | INFO  | ✅ [SELF-TEST] Knowledge graph: 15 concept nodes ✓ ✓
+08:36:32 | WARN  | ❌ [SELF-TEST] GEMINI_API_KEY is NOT set — AI features will fail ✗
+08:36:32 | INFO  | ✅ [SELF-TEST] Learner profile seeded — AI agent has behavioral data ✓ ✓
+08:36:32 | WARN  | ❌ [SELF-TEST] 8/10 tests passed — 2 failure(s), check logs above ✗
+08:36:32 | INFO  | ─────────────────────────────────────────
+08:39:46 | INFO  | 📊 [GROQ] Response time: 1343ms
+08:39:46 | INFO  | 📊 [GROQ] Response length: 1125 chars

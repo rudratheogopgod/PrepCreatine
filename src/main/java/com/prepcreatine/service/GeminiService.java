@@ -6,84 +6,89 @@ import com.prepcreatine.util.EvalLogger;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Gemini API client per BSDD §6.
- * Uses Spring WebClient (non-blocking).
+ * AI API client using Groq's OpenAI-compatible REST API.
+ * Base URL: https://api.groq.com/openai
  *
- * Supports both:
- *   - generateContent  (one-shot JSON response)
- *   - streamGenerateContent (SSE streaming for chat)
+ * Supports:
+ * - generateContent  → POST /v1/chat/completions  (one-shot JSON response)
+ * - streamGenerateContent → POST /v1/chat/completions with stream=true (SSE tokens)
+ * - embedText        → mock (Groq has no embedding endpoint; returns zero vector)
  *
- * Models used:
- *   - gemini-2.0-flash  → chat, summaries, Q&A generation (fast)
- *   - text-embedding-004 → embedding (768 dims)
+ * Models:
+ * - llama-3.3-70b-versatile → chat, summaries, Q&A generation
+ * - llama-3.1-8b-instant    → fallback / fast tasks
  */
 @Service
 public class GeminiService {
 
     private static final Logger log = LoggerFactory.getLogger(GeminiService.class);
 
-    private final WebClient    geminiClient;
+    private final WebClient geminiClient;
     private final GeminiProperties props;
 
     public GeminiService(@Qualifier("geminiWebClient") WebClient geminiClient, GeminiProperties props) {
         this.geminiClient = geminiClient;
-        this.props        = props;
+        this.props = props;
     }
 
     // ── One-Shot Generation ────────────────────────────────────────────────
 
     /**
-     * Sends a prompt to Gemini and returns the complete text response.
-     * Used for: study guide generation, quiz generation, AI summary.
+     * Sends a prompt to Groq and returns the complete text response.
+     * Uses POST /v1/chat/completions (OpenAI-compatible).
      *
-     * @throws ExternalServiceException if Gemini returns an error
+     * @throws ExternalServiceException if Groq returns an error
      */
     public String generateContent(String systemPrompt, String userPrompt) {
-        log.info("[Gemini] Call start: model={}, promptLength={}chars", props.getModel(), userPrompt.length());
+        log.info("[Groq] Call start: model={}, promptLength={}chars", props.getModel(), userPrompt.length());
         long start = System.currentTimeMillis();
-        Map<String, Object> requestBody = buildGenerateRequest(systemPrompt, userPrompt);
+        Map<String, Object> requestBody = buildChatRequest(systemPrompt, userPrompt, false);
 
         String response;
         try {
             response = geminiClient.post()
-                .uri("/v1beta/models/" + props.getModel() + ":generateContent?key=" + props.getApiKey())
-                .contentType(MediaType.APPLICATION_JSON)
-                .bodyValue(requestBody)
-                .retrieve()
-                .onStatus(status -> !status.is2xxSuccessful(), resp ->
-                    resp.bodyToMono(String.class)
-                        .flatMap(body -> {
-                            EvalLogger.failure(log, "GEMINI",
-                                "API call failed: status=" + resp.statusCode().value());
-                            return Mono.error(new ExternalServiceException("Gemini",
-                                "Gemini API error " + resp.statusCode().value() + ": " + body));
-                        }))
-                .bodyToMono(String.class)
-                .block();
+                    .uri("/v1/chat/completions")
+                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.getApiKey())
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .bodyValue(requestBody)
+                    .retrieve()
+                    .onStatus(status -> !status.is2xxSuccessful(), resp -> resp.bodyToMono(String.class)
+                            .flatMap(body -> {
+                                EvalLogger.failure(log, "GROQ",
+                                        "API call failed: status=" + resp.statusCode().value() + " body=" + body);
+                                return Mono.error(new ExternalServiceException("Groq",
+                                        "Groq API error " + resp.statusCode().value() + ": " + body));
+                            }))
+                    .bodyToMono(String.class)
+                    .block();
         } catch (Exception ex) {
             long ms = System.currentTimeMillis() - start;
-            EvalLogger.failure(log, "GEMINI", "Call failed after " + ms + "ms: " + ex.getMessage());
+            EvalLogger.failure(log, "GROQ", "Call failed after " + ms + "ms: " + ex.getMessage());
             throw ex;
         }
 
         long ms = System.currentTimeMillis() - start;
         String text = extractText(response);
-        EvalLogger.result(log, "GEMINI", "Response time", ms + "ms");
-        EvalLogger.result(log, "GEMINI", "Response length", text.length() + " chars");
+        // Strip markdown code fences if present (Groq sometimes wraps JSON in ```)
+        text = stripMarkdownFences(text);
+        EvalLogger.result(log, "GROQ", "Response time", ms + "ms");
+        EvalLogger.result(log, "GROQ", "Response length", text.length() + " chars");
         if (ms > 10000) {
-            EvalLogger.failure(log, "GEMINI", "Response took " + ms + "ms — exceeded 10s threshold");
+            EvalLogger.failure(log, "GROQ", "Response took " + ms + "ms — exceeded 10s threshold");
         } else {
-            log.debug("[Gemini] Call complete: {}ms", ms);
+            log.debug("[Groq] Call complete: {}ms", ms);
         }
         return text;
     }
@@ -92,128 +97,126 @@ public class GeminiService {
 
     /**
      * Returns a reactive Flux of SSE text chunks for streaming chat responses.
-     * Controller writes each chunk to the SseEmitter.
+     * Uses POST /v1/chat/completions with stream=true.
+     * Each SSE chunk follows OpenAI delta format: choices[0].delta.content
      */
     public Flux<String> streamGenerateContent(String systemPrompt, String userPrompt) {
-        Map<String, Object> requestBody = buildGenerateRequest(systemPrompt, userPrompt);
+        Map<String, Object> requestBody = buildChatRequest(systemPrompt, userPrompt, true);
 
         return geminiClient.post()
-            .uri("/v1beta/models/" + props.getModel() + ":streamGenerateContent?alt=sse&key=" + props.getApiKey())
-            .contentType(MediaType.APPLICATION_JSON)
-            .bodyValue(requestBody)
-            .retrieve()
-            .onStatus(status -> !status.is2xxSuccessful(), resp ->
-                Mono.error(new ExternalServiceException("Gemini",
-                    "Gemini streaming error " + resp.statusCode().value())))
-            .bodyToFlux(String.class)
-            .filter(chunk -> chunk != null && !chunk.isBlank())
-            .mapNotNull(this::extractStreamChunk);
+                .uri("/v1/chat/completions")
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + props.getApiKey())
+                .contentType(MediaType.APPLICATION_JSON)
+                .bodyValue(requestBody)
+                .retrieve()
+                .onStatus(status -> !status.is2xxSuccessful(), resp -> resp.bodyToMono(String.class)
+                        .flatMap(body -> Mono.error(new ExternalServiceException("Groq",
+                                "Groq streaming error " + resp.statusCode().value() + ": " + body))))
+                .bodyToFlux(String.class)
+                .filter(chunk -> chunk != null && !chunk.isBlank())
+                .mapNotNull(this::extractStreamChunk);
     }
 
     // ── Embeddings ─────────────────────────────────────────────────────────
 
     /**
-     * Generates a 768-dimensional embedding vector for a text chunk.
-     * Model: text-embedding-004
+     * Groq does not provide an embedding endpoint.
+     * Returns a zero-filled 768-dimensional vector so callers don't break.
+     * If real embeddings are needed, swap in OpenAI text-embedding-3-small.
      */
     public float[] embedText(String text) {
-        log.debug("[Embedding] Embedding text: length={}chars", text.length());
-        long start = System.currentTimeMillis();
-        Map<String, Object> requestBody = Map.of(
-            "model", "models/text-embedding-004",
-            "content", Map.of(
-                "parts", List.of(Map.of("text", text))
-            )
-        );
-
-        String response = geminiClient.post()
-            .uri("/v1beta/models/text-embedding-004:embedContent?key=" + props.getApiKey())
-            .contentType(MediaType.APPLICATION_JSON)
-            .bodyValue(requestBody)
-            .retrieve()
-            .onStatus(status -> !status.is2xxSuccessful(), resp ->
-                resp.bodyToMono(String.class)
-                    .flatMap(body -> Mono.error(
-                        new ExternalServiceException("Gemini", "Embedding error: " + body))))
-            .bodyToMono(String.class)
-            .block();
-
-        float[] embedding = extractEmbedding(response);
-        log.debug("[Embedding] Done: {}ms, dimensions={}", System.currentTimeMillis() - start, embedding.length);
-        return embedding;
+        log.warn("[Embedding] Groq has no embedding API — returning zero vector for text length={}", text.length());
+        return new float[768];
     }
 
     // ── Private Helpers ────────────────────────────────────────────────────
 
-    private Map<String, Object> buildGenerateRequest(String systemPrompt, String userPrompt) {
+    /**
+     * Builds an OpenAI-compatible chat completions request body.
+     */
+    private Map<String, Object> buildChatRequest(String systemPrompt, String userPrompt, boolean stream) {
+        List<Map<String, String>> messages = new ArrayList<>();
+        if (systemPrompt != null && !systemPrompt.isBlank()) {
+            messages.add(Map.of("role", "system", "content", systemPrompt));
+        }
+        messages.add(Map.of("role", "user", "content", userPrompt));
+
         return Map.of(
-            "systemInstruction", Map.of(
-                "parts", List.of(Map.of("text", systemPrompt))
-            ),
-            "contents", List.of(Map.of(
-                "role", "user",
-                "parts", List.of(Map.of("text", userPrompt))
-            )),
-            "generationConfig", Map.of(
-                "temperature",     0.7,
-                "maxOutputTokens", props.getMaxOutputTokens()
-            )
+                "model", props.getModel(),
+                "messages", messages,
+                "max_tokens", props.getMaxOutputTokens(),
+                "temperature", 0.7,
+                "stream", stream
         );
     }
 
     /**
-     * Parses the full generateContent JSON response to extract text.
-     * Uses Jackson via simple string extraction (avoid full deserialize for performance).
+     * Parses a Groq /v1/chat/completions JSON response.
+     * Structure: { choices: [ { message: { content: "..." } } ] }
      */
     private String extractText(String responseJson) {
-        if (responseJson == null) {
-            throw new ExternalServiceException("Gemini", "Empty response from Gemini API.");
+        if (responseJson == null || responseJson.isBlank()) {
+            throw new ExternalServiceException("Groq", "Empty response from Groq API.");
         }
         try {
             com.fasterxml.jackson.databind.JsonNode root =
-                new com.fasterxml.jackson.databind.ObjectMapper().readTree(responseJson);
-            return root.path("candidates").get(0)
-                       .path("content").path("parts").get(0)
-                       .path("text").asText();
+                    new com.fasterxml.jackson.databind.ObjectMapper().readTree(responseJson);
+
+            // Surface Groq API-level errors
+            if (root.has("error")) {
+                String errMsg = root.path("error").path("message").asText("Unknown Groq error");
+                throw new ExternalServiceException("Groq", "Groq API returned error: " + errMsg);
+            }
+
+            return root.path("choices").get(0)
+                    .path("message")
+                    .path("content")
+                    .asText();
+        } catch (ExternalServiceException ex) {
+            throw ex;
         } catch (Exception e) {
-            log.error("[Gemini] Failed to parse response: {}", e.getMessage());
-            throw new ExternalServiceException("Gemini", "Failed to parse Gemini response.");
+            log.error("[Groq] Failed to parse response: {} | raw={}", e.getMessage(), responseJson);
+            throw new ExternalServiceException("Groq", "Failed to parse Groq response.");
         }
     }
 
     /**
-     * Extracts text chunk from a streaming SSE line.
+     * Extracts a text delta from a streaming SSE chunk.
+     * Groq stream format: data: { choices: [ { delta: { content: "..." } } ] }
+     * Terminal chunk: data: [DONE]
      */
     private String extractStreamChunk(String sseData) {
         try {
             String json = sseData.startsWith("data: ") ? sseData.substring(6) : sseData;
+            if ("[DONE]".equals(json.trim())) return null;
+
             com.fasterxml.jackson.databind.JsonNode root =
-                new com.fasterxml.jackson.databind.ObjectMapper().readTree(json);
-            return root.path("candidates").get(0)
-                       .path("content").path("parts").get(0)
-                       .path("text").asText("");
+                    new com.fasterxml.jackson.databind.ObjectMapper().readTree(json);
+            com.fasterxml.jackson.databind.JsonNode content =
+                    root.path("choices").get(0).path("delta").path("content");
+
+            if (content.isMissingNode() || content.isNull()) return null;
+            return content.asText("");
         } catch (Exception e) {
-            return null; // filter out unparseable chunks
+            return null; // filter unparseable chunks
         }
     }
 
     /**
-     * Extracts float[] embedding from embedContent response.
+     * Strips markdown code fences (```json ... ```) that Groq sometimes wraps around JSON.
      */
-    @SuppressWarnings("unchecked")
-    private float[] extractEmbedding(String responseJson) {
-        try {
-            com.fasterxml.jackson.databind.ObjectMapper om = new com.fasterxml.jackson.databind.ObjectMapper();
-            com.fasterxml.jackson.databind.JsonNode root = om.readTree(responseJson);
-            com.fasterxml.jackson.databind.JsonNode values = root.path("embedding").path("values");
-            float[] embedding = new float[values.size()];
-            for (int i = 0; i < values.size(); i++) {
-                embedding[i] = (float) values.get(i).asDouble();
+    private String stripMarkdownFences(String text) {
+        if (text == null) return null;
+        String trimmed = text.trim();
+        if (trimmed.startsWith("```")) {
+            int firstNewline = trimmed.indexOf('\n');
+            if (firstNewline != -1) {
+                trimmed = trimmed.substring(firstNewline + 1);
             }
-            return embedding;
-        } catch (Exception e) {
-            log.error("[Gemini] Failed to parse embedding: {}", e.getMessage());
-            throw new ExternalServiceException("Gemini", "Failed to parse embedding response.");
+            if (trimmed.endsWith("```")) {
+                trimmed = trimmed.substring(0, trimmed.length() - 3).trim();
+            }
         }
+        return trimmed;
     }
 }

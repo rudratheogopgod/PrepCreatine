@@ -3,20 +3,20 @@ import { persist } from 'zustand/middleware'
 import client from '../api/client'
 
 export interface AuthUser {
-id: string
-email: string
-fullName: string
-role: 'STUDENT' | 'MENTOR' | 'ADMIN'
-onboardingComplete: boolean
-avatarUrl?: string
+  id: string
+  email: string
+  fullName: string
+  role: 'STUDENT' | 'MENTOR' | 'ADMIN'
+  onboardingComplete: boolean
+  avatarUrl?: string
 }
 
 interface AuthStore {
-user: AuthUser | null
-token: string | null
-refreshToken: string | null
-isAuthenticated: boolean
-setAuth: (user: AuthUser, token: string, refreshToken: string) => void
+  user: AuthUser | null
+  token: string | null
+  refreshToken: string | null
+  isAuthenticated: boolean
+  setAuth: (user: AuthUser, token: string, refreshToken: string) => void
   setToken: (token: string) => void
   setUser: (user: AuthUser | null) => void
   logout: () => void
@@ -77,5 +77,5 @@ export const useAuthStore = create<AuthStore>()(
         }
       },
     }
-)
+  )
 )

@@ -28,7 +28,7 @@ interface TestSession {
 export default function ExamSession() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
-  
+
   const [currentQ, setCurrentQ] = useState(0)
   const [answers, setAnswers] = useState<Record<string, string>>({})
   const [flags, setFlags] = useState<Record<string, boolean>>({})
@@ -47,7 +47,7 @@ export default function ExamSession() {
       durationMins: 60,
       expiresAt: new Date(Date.now() + 60 * 60000).toISOString(),
       questions: [
-        { id: 'q1', type: 'mcq', text: '<p>What is the integral of e^x?</p>', options: [{id:'a', text:'e^x'}, {id:'b', text:'xe^x'}, {id:'c', text:'e^x + c'}, {id:'d', text:'1'}] },
+        { id: 'q1', type: 'mcq', text: '<p>What is the integral of e^x?</p>', options: [{ id: 'a', text: 'e^x' }, { id: 'b', text: 'xe^x' }, { id: 'c', text: 'e^x + c' }, { id: 'd', text: '1' }] },
         { id: 'q2', type: 'numerical', text: '<p>Calculate the value of 5!</p>', options: [] }
       ]
     }
@@ -57,7 +57,7 @@ export default function ExamSession() {
   useEffect(() => {
     if (!session?.expiresAt) return
     const expiry = new Date(session.expiresAt).getTime()
-    
+
     const tick = () => {
       const remaining = Math.max(0, Math.floor((expiry - Date.now()) / 1000))
       setTimeLeft(remaining)
@@ -66,7 +66,7 @@ export default function ExamSession() {
         submitMutation.mutate()
       }
     }
-    
+
     tick()
     const int = setInterval(tick, 1000)
     return () => clearInterval(int)
@@ -124,7 +124,7 @@ export default function ExamSession() {
           </div>
           <h1 className="text-sm font-heading font-semibold text-gray-800 dark:text-white truncate max-w-[200px] sm:max-w-xs">{session.name}</h1>
         </div>
-        
+
         <div className="flex items-center gap-4 border border-gray-200 dark:border-slate-700 rounded-xl px-4 py-1.5 bg-gray-50 dark:bg-slate-800">
           <Clock size={16} className={timeLeft && timeLeft < 300 ? 'text-red-500 animate-pulse' : 'text-gray-500 dark:text-slate-400'} />
           <span className={`text-xl font-mono font-bold tracking-tight ${timeLeft && timeLeft < 300 ? 'text-red-500' : 'text-gray-900 dark:text-white'}`}>
@@ -150,10 +150,10 @@ export default function ExamSession() {
               <Flag size={14} className={flags[q.id] ? 'fill-amber-500' : ''} /> {flags[q.id] ? 'Flagged' : 'Flag for review'}
             </button>
           </div>
-          
+
           {/* Question Text */}
           <div className="prose dark:prose-invert max-w-none mb-8 font-body text-gray-800 dark:text-slate-200 text-base leading-relaxed" dangerouslySetInnerHTML={{ __html: sanitizeHtml(q.text) }} />
-          
+
           {/* Options */}
           {q.type === 'mcq' ? (
             <div className="space-y-3 mt-auto">
@@ -163,15 +163,13 @@ export default function ExamSession() {
                   <button
                     key={opt.id}
                     onClick={() => handleAnswer(opt.id)}
-                    className={`w-full text-left flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${
-                      isSelected 
-                        ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300 shadow-sm' 
+                    className={`w-full text-left flex items-center gap-4 p-4 rounded-xl border-2 transition-all ${isSelected
+                        ? 'border-sky-500 bg-sky-50 dark:bg-sky-900/20 text-sky-700 dark:text-sky-300 shadow-sm'
                         : 'border-gray-200 dark:border-slate-700 hover:border-sky-300 dark:hover:border-sky-700 bg-transparent text-gray-700 dark:text-slate-300'
-                    }`}
+                      }`}
                   >
-                    <div className={`w-6 h-6 rounded-full flex items-center justify-center border text-xs font-bold ${
-                      isSelected ? 'bg-sky-500 border-sky-500 text-white' : 'border-gray-300 dark:border-slate-500 text-gray-500 dark:text-slate-400'
-                    }`}>
+                    <div className={`w-6 h-6 rounded-full flex items-center justify-center border text-xs font-bold ${isSelected ? 'bg-sky-500 border-sky-500 text-white' : 'border-gray-300 dark:border-slate-500 text-gray-500 dark:text-slate-400'
+                      }`}>
                       {String.fromCharCode(65 + i)}
                     </div>
                     <span className="font-body text-sm" dangerouslySetInnerHTML={{ __html: sanitizeHtml(opt.text) }} />
@@ -182,8 +180,8 @@ export default function ExamSession() {
           ) : (
             <div className="mt-auto">
               <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 font-body mb-2">Your Answer:</label>
-              <input 
-                type="number" 
+              <input
+                type="number"
                 step="any"
                 className="w-full max-w-sm px-4 py-3 border-2 border-gray-200 dark:border-slate-700 rounded-xl focus:border-sky-500 focus:ring-1 focus:ring-sky-500 bg-transparent text-gray-900 dark:text-white font-body"
                 value={answers[q.id] || ''}
@@ -220,7 +218,7 @@ export default function ExamSession() {
               const isAns = !!answers[sq.id]
               const isFlag = flags[sq.id]
               const isCurr = currentQ === i
-              
+
               let bg = 'bg-gray-100 dark:bg-slate-800 text-gray-600 dark:text-slate-400 border-transparent border-2'
               if (isCurr) bg = 'bg-white dark:bg-slate-900 border-sky-500 text-sky-600 dark:text-sky-400 border-2'
               else if (isFlag && isAns) bg = 'bg-amber-500 text-white shadow-sm border-transparent border-2'

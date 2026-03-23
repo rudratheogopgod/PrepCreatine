@@ -1,6 +1,6 @@
-# UPSC AI Study Planner — LangGraph System
+# PrepCreatine Planner Agent — LangGraph System
 
-A production-ready AI agent system that generates a personalized UPSC study plan,
+A production-ready AI agent system that generates a personalized study plan for rigorous exams (e.g. JEE/NEET),
 tracks progress, schedules sessions in Google Calendar, and adapts the plan
 daily based on actual completion.
 
@@ -13,7 +13,7 @@ START
   │
   ▼
 ┌─────────────┐      writes      ┌──────────────────┐
-│ Planner     │ ──────────────►  │ study_plan (PG)  │
+│ Planner     │ ──────────────►  │ daily_plans (PG) │
 │ Agent       │                  └──────────────────┘
 └──────┬──────┘
        │

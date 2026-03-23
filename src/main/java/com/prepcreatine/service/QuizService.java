@@ -87,12 +87,15 @@ public class QuizService {
 
         TestSession session = new TestSession();
         session.setUserId(userId);
-        session.setExamId(examId);
+        session.setExamId(examId != null ? examId.toLowerCase() : "jee");
         session.setSubjectId(subjectId);
         session.setTopicId(topicId);
         session.setTotalQuestions(questions.size());
         session.setTimeLimitMins(timeLimitMins);
-        session.setStatus("STARTED");
+        // DB check: status IN ('in_progress','submitted','abandoned')
+        session.setStatus("in_progress");
+        // DB check: test_type IN ('full_mock','topic_wise','rapid_fire') — NOT NULL
+        session.setTestType(topicId != null && !topicId.isBlank() ? "topic_wise" : "full_mock");
         testSessionRepo.save(session);
 
         // Store question IDs in session (for validation on submit)
@@ -113,7 +116,7 @@ public class QuizService {
         if (!session.getUserId().equals(userId)) {
             throw new ForbiddenException("Not your test session.", userId);
         }
-        if (!"STARTED".equals(session.getStatus())) {
+        if (!"in_progress".equals(session.getStatus())) {
             throw new ValidationException("This test has already been submitted.");
         }
 
@@ -145,7 +148,8 @@ public class QuizService {
         session.setCorrectCount(correct);
         session.setAnsweredCount(req.answers().size());
         session.setScore(score);
-        session.setStatus("COMPLETED");
+        // DB check: status IN ('in_progress','submitted','abandoned')
+        session.setStatus("submitted");
         session.setSubmittedAt(OffsetDateTime.now());
         testSessionRepo.save(session);
 
@@ -227,31 +231,44 @@ public class QuizService {
 
     private List<Question> generateAndSaveQuestions(String examId, String subjectId,
                                                      String topicId, int count) {
+        // Normalize to lowercase to satisfy DB check constraints
+        String normExam    = examId    != null ? examId.toLowerCase()    : "jee";
+        String normSubject = subjectId != null ? subjectId.toLowerCase() : "general";
+        String normTopic   = topicId   != null ? topicId                 : "general";
+
         String prompt = """
             Generate %d unique multiple-choice questions for:
             Exam: %s | Subject: %s | Topic: %s
-            
-            Return ONLY a JSON array with each object having:
+
+            Return ONLY a raw JSON array (no markdown, no code fences) where each object has:
             { "stem": "...", "options": ["A. ...", "B. ...", "C. ...", "D. ..."],
               "correctAnswer": "A", "explanation": "...", "level": 2 }
-            """.formatted(count, examId, subjectId, topicId);
+
+            Difficulty level: 1=conceptual, 2=application, 3=exam-level.
+            """.formatted(count, normExam, normSubject, normTopic);
 
         String json = gemini.generateContent(
-            "You are an expert question setter for " + examId + " examination. Return only valid JSON.", prompt);
+            "You are an expert question setter for " + normExam.toUpperCase() + " examination. Return only valid JSON array.", prompt);
 
         List<Question> generated = new ArrayList<>();
         try {
             com.fasterxml.jackson.databind.JsonNode arr = om.readTree(json);
+            if (!arr.isArray()) {
+                throw new IllegalStateException("AI response is not a JSON array");
+            }
             for (com.fasterxml.jackson.databind.JsonNode node : arr) {
                 Question q = new Question();
-                q.setExamId(examId);
-                q.setSubjectId(subjectId);
-                q.setTopicId(topicId);
-                q.setType("MCQ");
+                q.setExamId(normExam);
+                q.setSubjectId(normSubject);
+                q.setTopicId(normTopic);
+                // DB check: type IN ('mcq','integer','multi_correct') — must be lowercase
+                q.setType("mcq");
+                q.setAiGenerated(true);
                 q.setQuestionText(node.path("stem").asText());
                 q.setCorrectAnswer(node.path("correctAnswer").asText());
                 q.setExplanation(node.path("explanation").asText());
-                q.setLevel((short) node.path("level").asInt(2));
+                int lvl = node.path("level").asInt(2);
+                q.setLevel((short) Math.max(1, Math.min(3, lvl))); // clamp 1..3
                 // Store options as array string
                 List<String> opts = new ArrayList<>();
                 node.path("options").forEach(o -> opts.add(o.asText()));
@@ -287,9 +304,17 @@ public class QuizService {
             );
         }).toList();
 
+        // Map internal DB status back to UI-friendly values
+        String uiStatus = switch (session.getStatus()) {
+            case "in_progress" -> "STARTED";
+            case "submitted"   -> "COMPLETED";
+            case "abandoned"   -> "ABANDONED";
+            default            -> session.getStatus().toUpperCase();
+        };
+
         return new TestSessionResponse(
             session.getId(), session.getExamId(), session.getSubjectId(),
-            session.getTopicId(), session.getStatus(),
+            session.getTopicId(), uiStatus,
             session.getTotalQuestions(), session.getAnsweredCount(),
             session.getCorrectCount(), session.getScore(),
             session.getTimeLimitMins(),

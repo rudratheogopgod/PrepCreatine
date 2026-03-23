@@ -1,73 +1,51 @@
-# React + TypeScript + Vite
+# PrepCreatine Frontend (Next.js)
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This is the primary web application interface for PrepCreatine. It provides the dashboards, AI-chat learning paths, and progress analytics. It is built using Next.js, React, Tailwind CSS, and connects directly to the Java Spring Boot Backend APIs.
 
-Currently, two official plugins are available:
+## Features
+- **Student Dashboard:** Real-time analytics, Exam Countdown, and Streaks.
+- **Learn Interface:** AI-driven conversational learning paths formatted elegantly from streaming SSE tokens.
+- **Tests & Drills:** Full-length dynamic adaptive tests based on weak spots.
+- **Analytics:** Data-driven insights mapping topic progress, historical activity, and overall exam readiness score.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## 🛠 Prerequisites
+- **Node.js**: v18 or later
+- **npm** or **yarn** or **pnpm**
+- The PrepCreatine Backend Server must be running locally on `localhost:8080`.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+## 🚀 Setup Instructions (Step-by-Step)
 
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### 1. Install Dependencies
+Navigate to the `frontend` directory and install the necessary node modules:
+```bash
+cd frontend
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### 2. Configure Environment Variables
+Create a file named `.env.local` inside the `frontend` directory:
+```bash
+touch .env.local
 ```
+Add the following line to define your backend API endpoint:
+```env
+NEXT_PUBLIC_API_URL=http://localhost:8080/api
+```
+
+### 3. Run the Development Server
+Start the Next.js development server:
+```bash
+npm run dev
+```
+
+### 4. Access the Application
+Open your browser and navigate to:
+**[http://localhost:3000](http://localhost:3000)**
+
+## 🛡 Authentication (Demo Mode)
+For testing and hackathon purposes, the Java backend natively supports a Demo Mode bypass. 
+If your backend was launched with the `DEMO_MODE=true` environment variable, simply click the **"Login as Demo User"** button on the Login page. 
+
+This will automatically authenticate you as the default demo user (*Arjun Sharma*) without requiring a username or password.

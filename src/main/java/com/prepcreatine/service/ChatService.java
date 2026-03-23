@@ -96,6 +96,7 @@ public class ChatService {
         // 2. Persist user message
         Message userMsg = new Message();
         userMsg.setConversationId(convId);
+        userMsg.setUserId(userId);
         userMsg.setRole("user");
         userMsg.setContent(req.message());
         messageRepo.save(userMsg);
@@ -132,47 +133,49 @@ public class ChatService {
         String userPrompt = buildAgenticUserPrompt(
             req.message(), conv, userId, struggleTags, profileSummary);
 
-        // 10. Stream response
+        // 10. Collect full stream, strip ---JSON--- block, then emit clean tokens
         SseEmitter emitter = new SseEmitter(3 * 60 * 1000L);
-        StringBuilder fullResponse = new StringBuilder();
         Flux<String> tokenFlux = gemini.streamGenerateContent(systemPrompt, userPrompt);
 
-        tokenFlux.subscribe(
-            token -> {
-                try {
-                    fullResponse.append(token);
-                    emitter.send(SseEmitter.event().name("token").data(token));
-                } catch (IOException e) {
-                    emitter.completeWithError(e);
+        // Collect the full response first, THEN strip JSON and stream clean text.
+        // This avoids leaking the ---JSON--- metadata block to the user.
+        tokenFlux
+            .collectList()
+            .doOnSuccess(tokens -> {
+                String fullRaw = String.join("", tokens);
+
+                // ── Strip ---JSON--- block ────────────────────────────────────
+                String cleanText = fullRaw;
+                String extractedJson = null;
+                int jsonStart = fullRaw.indexOf("---JSON---");
+                if (jsonStart != -1) {
+                    // Everything before the first ---JSON--- marker is the human text
+                    cleanText = fullRaw.substring(0, jsonStart).trim();
+                    int jsonEnd = fullRaw.indexOf("---JSON---", jsonStart + 10);
+                    if (jsonEnd != -1) {
+                        extractedJson = fullRaw.substring(jsonStart + 10, jsonEnd).trim();
+                    }
+                    log.debug("[Chat] Stripped JSON block ({} chars) from response",
+                        fullRaw.length() - cleanText.length());
                 }
-            },
-            error -> {
-                log.error("[Chat] Streaming error for convId={}: {}", convId, error.getMessage());
-                try {
-                    emitter.send(SseEmitter.event().name("error")
-                        .data("AI error occurred. Please retry."));
-                } catch (IOException ignored) {}
-                emitter.completeWithError(error);
-            },
-            () -> {
-                // Persist complete assistant response
-                String aiText = fullResponse.toString();
+
+                // ── Save clean text (without JSON) to DB ──────────────────────
                 Message assistantMsg = new Message();
                 assistantMsg.setConversationId(convId);
+                assistantMsg.setUserId(userId);
                 assistantMsg.setRole("assistant");
-                assistantMsg.setContent(aiText);
+                assistantMsg.setContent(cleanText);
                 messageRepo.save(assistantMsg);
 
-                // Post-stream: extract concept tags → update memory + struggles
-                List<String> detectedTags = memoryService.parseConceptTagsFromResponse(aiText);
+                // ── Post-stream: extract concept tags for memory + struggles ──
+                String textForAnalysis = extractedJson != null ? extractedJson : cleanText;
+                List<String> detectedTags = memoryService.parseConceptTagsFromResponse(textForAnalysis);
                 memoryService.extractMemoriesFromChat(
-                    userId, req.message(), aiText, currentTopicId, detectedTags);
+                    userId, req.message(), cleanText, currentTopicId, detectedTags);
 
-                // Update study session stats in learner profile (async)
                 learnerProfileService.updateFromStudySession(
                     userId, 5, detectedTags.isEmpty() ? List.of() : detectedTags);
 
-                // If active struggle tags detected → increment counts
                 if (!detectedTags.isEmpty() && !struggles.isEmpty()) {
                     Set<String> activeStruggleTags = struggles.stream()
                         .map(ConceptStruggle::getConceptTag).collect(Collectors.toSet());
@@ -187,12 +190,32 @@ public class ChatService {
                         });
                 }
 
+                // ── Stream clean text as tokens to frontend ───────────────────
+                // Chunk at word boundaries so the UI feels natural
+                String[] words = cleanText.split("(?<=\\s)|(?=\\s)");
+                for (String word : words) {
+                    try {
+                        emitter.send(SseEmitter.event().name("token").data(word));
+                    } catch (IOException e) {
+                        emitter.completeWithError(e);
+                        return;
+                    }
+                }
+
                 try {
                     emitter.send(SseEmitter.event().name("done").data("[DONE]"));
                 } catch (IOException ignored) {}
                 emitter.complete();
-            }
-        );
+            })
+            .doOnError(error -> {
+                log.error("[Chat] Streaming error for convId={}: {}", convId, error.getMessage());
+                try {
+                    emitter.send(SseEmitter.event().name("error")
+                        .data("AI error occurred. Please retry."));
+                } catch (IOException ignored) {}
+                emitter.completeWithError(error);
+            })
+            .subscribe();
 
         return emitter;
     }

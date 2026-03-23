@@ -25,10 +25,13 @@ public final class SecurityUtil {
             throw new IllegalStateException("No authenticated user in security context.");
         }
         Object principal = auth.getPrincipal();
+        if (principal instanceof com.prepcreatine.security.PrepCreatineUserDetails ud) {
+            return ud.getUserId();
+        }
         if (principal instanceof UUID) {
             return (UUID) principal;
         }
-        // Fallback: principal stored as String UUID
+        // Fallback: principal stored as String UUID (set by JwtAuthenticationFilter)
         return UUID.fromString(principal.toString());
     }
 
