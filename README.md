@@ -18,8 +18,6 @@ Welcome to **PrepCreatine**, an intelligent personalized study platform designed
 ![Progress Overview](./docs/images/analytics-progress.png)
 ![Exam Readiness](./docs/images/analytics-readiness.png)
 
-*(Note: Please ensure you place the screenshots provided into the `docs/images/` directory matching the filenames above to render them!)*
-
 ---
 
 ## 🚀 Setup Instructions (Step by Step)
